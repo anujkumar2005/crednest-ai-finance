@@ -197,10 +197,23 @@ export default function Chat() {
     let assistantContent = "";
 
     try {
-      const invokeOnce = () =>
-        supabase.functions.invoke("ai-chat", {
+      const invokeOnce = async () => {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          return {
+            data: null,
+            error: { context: { status: 401 } },
+          } as any;
+        }
+
+        return supabase.functions.invoke("ai-chat", {
           body: { messages: apiMessages },
+          headers: { Authorization: `Bearer ${session.access_token}` },
         });
+      };
 
       let { data, error } = await invokeOnce();
 

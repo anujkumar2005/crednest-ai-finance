@@ -111,14 +111,19 @@ serve(async (req) => {
       });
     }
 
-    // Create client with user's JWT to verify identity
+    // Verify the user's JWT and get authenticated user
+    // IMPORTANT: In backend functions we must pass the JWT explicitly.
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+
     const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authHeader } }
+      auth: { persistSession: false },
     });
 
-    // Verify the user's JWT and get authenticated user
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAuth.auth.getUser(jwt);
+
     if (authError || !user) {
       console.error("JWT verification failed:", authError?.message);
       return new Response(JSON.stringify({ error: "Unauthorized: Invalid or expired token" }), {
