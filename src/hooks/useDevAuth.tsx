@@ -9,8 +9,8 @@ interface DevAuthContextType {
 const DevAuthContext = createContext<DevAuthContextType | undefined>(undefined);
 
 // SHA-256 hash of the developer password
-// To change the password, generate a new hash using: https://emn178.github.io/online-tools/sha256.html
-const DEV_PASSWORD_HASH = "5e884898da28047d9171a52b6f901e31a0e2bc7a0a299f7b2df9a99c8e2f6d92"; // "password" - CHANGE THIS!
+// Password is "Anuj@2005"
+const DEV_PASSWORD_HASH = "5a39bead318f306939acb1d016647be2e38c6501c58571f981f5d8e8d8f40899";
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();

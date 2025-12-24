@@ -11,8 +11,8 @@ interface DevProtectedRouteProps {
 }
 
 // SHA-256 hash of the developer password
-// Default password is "dev@crednest2024" - CHANGE IN PRODUCTION!
-const DEV_PASSWORD_HASH = "a1159e9df3670d549d04524532629f5477ceb7deec9b45e47e8c009506ecb2c8";
+// Password is "Anuj@2005"
+const DEV_PASSWORD_HASH = "5a39bead318f306939acb1d016647be2e38c6501c58571f981f5d8e8d8f40899";
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
