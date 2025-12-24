@@ -13,8 +13,11 @@ import {
   Menu,
   X,
   Sparkles,
+  HelpCircle,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -28,6 +31,8 @@ const navItems = [
 
 const bottomItems = [
   { icon: User, label: "Profile", path: "/profile" },
+  { icon: HelpCircle, label: "Help", path: "/help" },
+  { icon: Info, label: "About", path: "/about" },
 ];
 
 interface SidebarProps {
@@ -129,6 +134,10 @@ export function Sidebar({ onLogout }: SidebarProps) {
 
         {/* Bottom section */}
         <div className="p-3 border-t border-sidebar-border space-y-1">
+          <div className="flex items-center justify-between px-2 py-1">
+            {!isCollapsed && <span className="text-xs text-muted-foreground">Theme</span>}
+            <ThemeToggle />
+          </div>
           {bottomItems.map((item) => (
             <NavLink key={item.path} item={item} />
           ))}

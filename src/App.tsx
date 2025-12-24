@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -14,32 +15,38 @@ import Investments from "./pages/Investments";
 import Loans from "./pages/Loans";
 import Insurance from "./pages/Insurance";
 import Profile from "./pages/Profile";
+import About from "./pages/About";
+import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-            <Route path="/budgeting" element={<ProtectedRoute><Budgeting /></ProtectedRoute>} />
-            <Route path="/savings" element={<ProtectedRoute><Savings /></ProtectedRoute>} />
-            <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
-            <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
-            <Route path="/insurance" element={<ProtectedRoute><Insurance /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+    <ThemeProvider defaultTheme="dark" storageKey="crednest-theme">
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+              <Route path="/budgeting" element={<ProtectedRoute><Budgeting /></ProtectedRoute>} />
+              <Route path="/savings" element={<ProtectedRoute><Savings /></ProtectedRoute>} />
+              <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
+              <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
+              <Route path="/insurance" element={<ProtectedRoute><Insurance /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
+              <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
