@@ -50,7 +50,7 @@ const quickActions = [
   },
 ];
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+// Invoke the backend chat function via supabase.functions.invoke (supports streaming).
 
 export default function Chat() {
   const { user } = useAuth();
@@ -197,46 +197,55 @@ export default function Chat() {
     let assistantContent = "";
 
     try {
-      // Get fresh session token for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast({
-          title: "Authentication Required",
-          description: "Please sign in to use the AI assistant.",
-          variant: "destructive",
+      const invokeOnce = () =>
+        supabase.functions.invoke("ai-chat", {
+          body: { messages: apiMessages },
         });
-        setIsTyping(false);
-        return;
+
+      let { data, error } = await invokeOnce();
+
+      // If the access token is expired, refresh once and retry.
+      if (error && (error as any)?.context?.status === 401) {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (!refreshError) {
+          ({ data, error } = await invokeOnce());
+        }
       }
 
-      const resp = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ messages: apiMessages }),
-      });
+      if (error) {
+        const status = (error as any)?.context?.status as number | undefined;
 
-      if (!resp.ok) {
-        if (resp.status === 429) {
+        if (status === 401) {
+          toast({
+            title: "Authentication Required",
+            description: "Please sign in again to use the AI assistant.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (status === 429) {
           toast({
             title: "Rate limited",
             description: "Please wait a moment and try again.",
             variant: "destructive",
           });
-        } else if (resp.status === 402) {
+          return;
+        }
+
+        if (status === 402) {
           toast({
             title: "Credits required",
             description: "Please add credits to continue using AI features.",
             variant: "destructive",
           });
-        } else {
-          throw new Error("Failed to get AI response");
+          return;
         }
-        setIsTyping(false);
-        return;
+
+        throw error;
       }
+
+      const resp = data as Response;
 
       const reader = resp.body?.getReader();
       if (!reader) throw new Error("No reader available");
