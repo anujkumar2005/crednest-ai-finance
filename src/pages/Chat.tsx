@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Send,
   Sparkles,
@@ -50,21 +52,70 @@ const quickActions = [
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
 
 export default function Chat() {
-  const [sessions, setSessions] = useState<ChatSession[]>([
-    {
-      id: "1",
-      title: "New Conversation",
-      messages: [],
-      createdAt: new Date(),
-    },
-  ]);
-  const [activeSessionId, setActiveSessionId] = useState("1");
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  // Load sessions from database
+  useEffect(() => {
+    if (user) {
+      loadSessions();
+    }
+  }, [user]);
+
+  const loadSessions = async () => {
+    try {
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from("chat_sessions")
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("updated_at", { ascending: false });
+
+      if (sessionsError) throw sessionsError;
+
+      if (sessionsData && sessionsData.length > 0) {
+        // Load messages for all sessions
+        const sessionsWithMessages: ChatSession[] = await Promise.all(
+          sessionsData.map(async (session) => {
+            const { data: messages } = await supabase
+              .from("chat_messages")
+              .select("*")
+              .eq("session_id", session.id)
+              .order("created_at", { ascending: true });
+
+            return {
+              id: session.id,
+              title: session.title || "New Conversation",
+              createdAt: new Date(session.created_at || ""),
+              messages: (messages || []).map((m) => ({
+                id: m.id,
+                role: m.role as "user" | "assistant",
+                content: m.content,
+                timestamp: new Date(m.created_at || ""),
+              })),
+            };
+          })
+        );
+
+        setSessions(sessionsWithMessages);
+        setActiveSessionId(sessionsWithMessages[0].id);
+      } else {
+        // Create first session
+        createNewSession();
+      }
+    } catch (error) {
+      console.error("Error loading sessions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,6 +124,30 @@ export default function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [activeSession?.messages]);
+
+  const saveMessage = async (sessionId: string, role: "user" | "assistant", content: string) => {
+    try {
+      await supabase.from("chat_messages").insert({
+        session_id: sessionId,
+        user_id: user?.id,
+        role,
+        content,
+      });
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+  };
+
+  const updateSessionTitle = async (sessionId: string, title: string) => {
+    try {
+      await supabase
+        .from("chat_sessions")
+        .update({ title, updated_at: new Date().toISOString() })
+        .eq("id", sessionId);
+    } catch (error) {
+      console.error("Error updating session:", error);
+    }
+  };
 
   const handleSend = async (message: string) => {
     if (!message.trim() || !activeSession || isTyping) return;
@@ -84,6 +159,10 @@ export default function Chat() {
       timestamp: new Date(),
     };
 
+    // Update session title if first message
+    const isFirstMessage = activeSession.messages.length === 0;
+    const newTitle = isFirstMessage ? message.slice(0, 30) + "..." : activeSession.title;
+
     // Update session with user message
     setSessions((prev) =>
       prev.map((s) =>
@@ -91,13 +170,19 @@ export default function Chat() {
           ? {
               ...s,
               messages: [...s.messages, userMessage],
-              title: s.messages.length === 0 ? message.slice(0, 30) + "..." : s.title,
+              title: newTitle,
             }
           : s
       )
     );
     setInput("");
     setIsTyping(true);
+
+    // Save user message to database
+    await saveMessage(activeSession.id, "user", message);
+    if (isFirstMessage) {
+      await updateSessionTitle(activeSession.id, newTitle);
+    }
 
     // Build messages for API
     const apiMessages = [
@@ -213,6 +298,11 @@ export default function Chat() {
           }
         }
       }
+
+      // Save assistant message to database
+      if (assistantContent) {
+        await saveMessage(activeSession.id, "assistant", assistantContent);
+      }
     } catch (error) {
       console.error("Chat error:", error);
       toast({
@@ -225,26 +315,69 @@ export default function Chat() {
     }
   };
 
-  const createNewSession = () => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: "New Conversation",
-      messages: [],
-      createdAt: new Date(),
-    };
-    setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(newSession.id);
+  const createNewSession = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("chat_sessions")
+        .insert({
+          user_id: user?.id,
+          title: "New Conversation",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newSession: ChatSession = {
+        id: data.id,
+        title: "New Conversation",
+        messages: [],
+        createdAt: new Date(data.created_at || ""),
+      };
+
+      setSessions((prev) => [newSession, ...prev]);
+      setActiveSessionId(newSession.id);
+    } catch (error) {
+      console.error("Error creating session:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create new chat session.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const deleteSession = (sessionId: string) => {
-    if (sessions.length === 1) {
-      createNewSession();
-    }
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    if (activeSessionId === sessionId) {
-      setActiveSessionId(sessions[0]?.id || "1");
+  const deleteSession = async (sessionId: string) => {
+    try {
+      // Delete messages first
+      await supabase.from("chat_messages").delete().eq("session_id", sessionId);
+      // Delete session
+      await supabase.from("chat_sessions").delete().eq("id", sessionId);
+
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+
+      if (activeSessionId === sessionId) {
+        const remaining = sessions.filter((s) => s.id !== sessionId);
+        if (remaining.length > 0) {
+          setActiveSessionId(remaining[0].id);
+        } else {
+          createNewSession();
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting session:", error);
     }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
