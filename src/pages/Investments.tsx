@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { isJwtExpiredError, retryOnJwtExpired } from "@/lib/supabaseRetry";
 import {
   TrendingUp,
   Star,
@@ -29,8 +31,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
 } from "recharts";
 
 interface MutualFund {
@@ -67,21 +67,41 @@ export default function Investments() {
     expectedReturn: 12,
   });
 
+  const { toast } = useToast();
+
   useEffect(() => {
     fetchFunds();
   }, []);
 
   const fetchFunds = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("investment_funds")
-        .select("*")
-        .order("rating", { ascending: false });
+      const { data, error } = await retryOnJwtExpired<MutualFund[]>(() =>
+        supabase
+          .from("investment_funds")
+          .select("*")
+          .order("rating", { ascending: false })
+      );
 
       if (error) throw error;
       setFunds(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching funds:", error);
+
+      if (isJwtExpiredError(error)) {
+        toast({
+          title: "Session expired",
+          description: "Please sign in again to continue.",
+          variant: "destructive",
+        });
+        await supabase.auth.signOut();
+      } else {
+        toast({
+          title: "Could not load funds",
+          description: "Please try again in a moment.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }

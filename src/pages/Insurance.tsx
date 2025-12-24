@@ -3,9 +3,10 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { isJwtExpiredError, retryOnJwtExpired } from "@/lib/supabaseRetry";
 import {
   Shield,
   Heart,
@@ -22,7 +23,6 @@ import {
   BadgeCheck,
   Users,
   IndianRupee,
-  Plane,
 } from "lucide-react";
 import {
   PieChart,
@@ -61,7 +61,6 @@ const insuranceTypes = [
   { value: "Health", icon: Users, label: "Health", color: "text-success" },
   { value: "Vehicle", icon: Car, label: "Vehicle", color: "text-info" },
   { value: "Home", icon: Home, label: "Home", color: "text-warning" },
-  { value: "Travel", icon: Plane, label: "Travel", color: "text-primary" },
 ];
 
 export default function Insurance() {
@@ -76,21 +75,41 @@ export default function Insurance() {
     type: "Term",
   });
 
+  const { toast } = useToast();
+
   useEffect(() => {
     fetchCompanies();
   }, []);
 
   const fetchCompanies = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("insurance_companies")
-        .select("*")
-        .order("claim_settlement_ratio", { ascending: false });
+      const { data, error } = await retryOnJwtExpired<InsuranceCompany[]>(() =>
+        supabase
+          .from("insurance_companies")
+          .select("*")
+          .order("claim_settlement_ratio", { ascending: false })
+      );
 
       if (error) throw error;
       setCompanies(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching insurance companies:", error);
+
+      if (isJwtExpiredError(error)) {
+        toast({
+          title: "Session expired",
+          description: "Please sign in again to continue.",
+          variant: "destructive",
+        });
+        await supabase.auth.signOut();
+      } else {
+        toast({
+          title: "Could not load insurance companies",
+          description: "Please try again in a moment.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
