@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { Slider } from "@/components/ui/slider";
+import { useToast } from "@/hooks/use-toast";
+import { isJwtExpiredError, retryOnJwtExpired } from "@/lib/supabaseRetry";
 import {
   Building2,
   Search,
@@ -70,21 +72,38 @@ export default function Loans() {
     tenure: 60,
   });
 
+  const { toast } = useToast();
+
   useEffect(() => {
     fetchBanks();
   }, []);
 
   const fetchBanks = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("banks")
-        .select("*")
-        .order("rating", { ascending: false });
+      const { data, error } = await retryOnJwtExpired<Bank[]>(() =>
+        supabase.from("banks").select("*").order("rating", { ascending: false })
+      );
 
       if (error) throw error;
       setBanks(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching banks:", error);
+
+      if (isJwtExpiredError(error)) {
+        toast({
+          title: "Session expired",
+          description: "Please sign in again to continue.",
+          variant: "destructive",
+        });
+        await supabase.auth.signOut();
+      } else {
+        toast({
+          title: "Could not load banks",
+          description: "Please try again in a moment.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
