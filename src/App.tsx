@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { DevProtectedRoute } from "@/components/DevProtectedRoute";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
@@ -42,7 +43,7 @@ const App = () => (
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
               <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
-              <Route path="/developer" element={<ProtectedRoute><Developer /></ProtectedRoute>} />
+              <Route path="/developer" element={<ProtectedRoute><DevProtectedRoute><Developer /></DevProtectedRoute></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

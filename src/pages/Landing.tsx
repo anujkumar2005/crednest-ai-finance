@@ -341,6 +341,13 @@ export default function Landing() {
               <Link to="/terms" className="text-sm text-muted-foreground hover:text-foreground">
                 Terms of Service
               </Link>
+              <Link 
+                to="/developer" 
+                className="text-sm text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                title="Developer Access"
+              >
+                Dev
+              </Link>
             </div>
           </div>
         </footer>
