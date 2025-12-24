@@ -47,7 +47,38 @@ export default function Developer() {
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
-  const fetchTableStats = async () => {
+  const loadAllData = async () => {
+    setLoading(true);
+    try {
+      // Use edge function to bypass RLS and get all stats
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-stats`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch admin stats");
+      }
+
+      const data = await response.json();
+      setTableStats(data.tableStats || []);
+      setSystemStats(data.systemStats || null);
+      setRecentActivity(data.recentActivity || []);
+    } catch (error) {
+      console.error("Error loading admin stats:", error);
+      // Fallback to regular queries if edge function fails
+      await loadFallbackData();
+    }
+    setLoading(false);
+  };
+
+  const loadFallbackData = async () => {
     const tables = [
       "profiles",
       "expenses",
@@ -83,9 +114,7 @@ export default function Developer() {
     }
 
     setTableStats(stats);
-  };
 
-  const fetchSystemStats = async () => {
     const [
       { count: totalUsers },
       { count: activeChats },
@@ -113,54 +142,6 @@ export default function Developer() {
       totalBudgets: totalBudgets || 0,
       totalLoans: totalLoans || 0,
     });
-  };
-
-  const fetchRecentActivity = async () => {
-    // Fetch recent chat messages
-    const { data: recentChats } = await supabase
-      .from("chat_messages")
-      .select("id, role, created_at, content")
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    // Fetch recent expenses
-    const { data: recentExpenses } = await supabase
-      .from("expenses")
-      .select("id, category, amount, created_at")
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    const activity: any[] = [];
-
-    if (recentChats) {
-      recentChats.forEach((chat) => {
-        activity.push({
-          type: "chat",
-          message: `${chat.role === "user" ? "User" : "AI"} message: "${chat.content?.substring(0, 50)}..."`,
-          time: chat.created_at,
-        });
-      });
-    }
-
-    if (recentExpenses) {
-      recentExpenses.forEach((expense) => {
-        activity.push({
-          type: "expense",
-          message: `Expense added: ₹${expense.amount} in ${expense.category}`,
-          time: expense.created_at,
-        });
-      });
-    }
-
-    // Sort by time
-    activity.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-    setRecentActivity(activity.slice(0, 15));
-  };
-
-  const loadAllData = async () => {
-    setLoading(true);
-    await Promise.all([fetchTableStats(), fetchSystemStats(), fetchRecentActivity()]);
-    setLoading(false);
   };
 
   const handleRefresh = async () => {
