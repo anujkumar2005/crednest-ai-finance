@@ -1,34 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-// Get allowed origins from environment or use defaults
-const getAllowedOrigins = (): string[] => {
-  const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
-  if (envOrigins) {
-    return envOrigins.split(",").map(o => o.trim());
-  }
-  // Default allowed origins for development and production
-  return [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://lovable.dev",
-  ];
-};
-
-const getCorsHeaders = (origin: string | null): Record<string, string> => {
-  const allowedOrigins = getAllowedOrigins();
-  // Check if origin is allowed or if we should allow any lovable.app subdomain
-  const isAllowed = origin && (
-    allowedOrigins.includes(origin) || 
-    origin.endsWith(".lovable.app") ||
-    origin.endsWith(".lovable.dev")
-  );
-  
-  return {
-    "Access-Control-Allow-Origin": isAllowed ? origin : allowedOrigins[0],
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-  };
+// CORS: allow the app preview + production origins.
+// Auth is enforced via Bearer JWT, so wide CORS is OK here.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 interface Message {
@@ -52,8 +30,8 @@ function calculateEMI(principal: number, annualRate: number, tenureMonths: numbe
   if (monthlyRate === 0) {
     emiValue = principal / tenureMonths;
   } else {
-    emiValue = (principal * monthlyRate * Math.pow(1 + monthlyRate, tenureMonths)) / 
-                (Math.pow(1 + monthlyRate, tenureMonths) - 1);
+    emiValue = (principal * monthlyRate * Math.pow(1 + monthlyRate, tenureMonths)) /
+      (Math.pow(1 + monthlyRate, tenureMonths) - 1);
   }
   return {
     emi: Math.round(emiValue),
@@ -61,7 +39,7 @@ function calculateEMI(principal: number, annualRate: number, tenureMonths: numbe
     totalInterest: Math.round(emiValue * tenureMonths - principal),
     principal,
     rate: annualRate,
-    tenure: tenureMonths
+    tenure: tenureMonths,
   };
 }
 
@@ -70,11 +48,13 @@ function checkLoanEligibility(monthlyIncome: number, loanAmount: number, cibilSc
   const assumedRate = cibilScore >= 750 ? 10 : cibilScore >= 700 ? 11 : 12;
   const maxTenure = 60;
   const emiResult = calculateEMI(loanAmount, assumedRate, maxTenure);
-  
+
   const isEligible = emiResult.emi <= maxEMI && cibilScore >= 650;
-  const maxLoanAmount = Math.round((maxEMI * (Math.pow(1 + assumedRate/1200, maxTenure) - 1)) / 
-                                   (assumedRate/1200 * Math.pow(1 + assumedRate/1200, maxTenure)));
-  
+  const maxLoanAmount = Math.round(
+    (maxEMI * (Math.pow(1 + assumedRate / 1200, maxTenure) - 1)) /
+      (assumedRate / 1200 * Math.pow(1 + assumedRate / 1200, maxTenure))
+  );
+
   return {
     eligible: isEligible,
     cibilScore,
@@ -84,16 +64,17 @@ function checkLoanEligibility(monthlyIncome: number, loanAmount: number, cibilSc
     maxEMIAffordable: maxEMI,
     maxLoanEligible: maxLoanAmount,
     estimatedRate: assumedRate,
-    recommendation: isEligible 
+    recommendation: isEligible
       ? `You are eligible for this loan. Your estimated EMI would be ₹${emiResult.emi.toLocaleString()}.`
-      : `Your loan may not be approved. ${cibilScore < 650 ? 'Improve your CIBIL score above 650.' : ''} ${emiResult.emi > maxEMI ? `Consider a smaller loan amount (max ₹${maxLoanAmount.toLocaleString()}) or longer tenure.` : ''}`
+      : `Your loan may not be approved. ${cibilScore < 650 ? "Improve your CIBIL score above 650." : ""} ${
+          emiResult.emi > maxEMI
+            ? `Consider a smaller loan amount (max ₹${maxLoanAmount.toLocaleString()}) or longer tenure.`
+            : ""
+        }`,
   };
 }
 
 serve(async (req) => {
-  const origin = req.headers.get("origin");
-  const corsHeaders = getCorsHeaders(origin);
-
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -359,10 +340,12 @@ Keep responses focused, practical, and helpful for Indian financial planning.`;
     
   } catch (error) {
     console.error("Chat function error:", error);
-    const corsHeaders = getCorsHeaders(null);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
