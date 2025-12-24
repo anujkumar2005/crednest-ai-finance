@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
@@ -18,24 +20,26 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/budgeting" element={<Budgeting />} />
-          <Route path="/savings" element={<Savings />} />
-          <Route path="/investments" element={<Investments />} />
-          <Route path="/loans" element={<Loans />} />
-          <Route path="/insurance" element={<Insurance />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+            <Route path="/budgeting" element={<ProtectedRoute><Budgeting /></ProtectedRoute>} />
+            <Route path="/savings" element={<ProtectedRoute><Savings /></ProtectedRoute>} />
+            <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
+            <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
+            <Route path="/insurance" element={<ProtectedRoute><Insurance /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

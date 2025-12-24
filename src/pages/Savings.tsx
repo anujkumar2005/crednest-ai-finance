@@ -1,7 +1,10 @@
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Plus,
   Target,
@@ -10,82 +13,131 @@ import {
   Plane,
   Home,
   GraduationCap,
-  Car,
   Heart,
-  Gift,
+  Loader2,
 } from "lucide-react";
 
 interface SavingsGoal {
   id: string;
   name: string;
-  icon: React.ElementType;
-  target: number;
-  saved: number;
-  deadline: string;
-  monthlyContribution: number;
+  target_amount: number;
+  current_amount: number;
+  deadline: string | null;
+  icon: string | null;
+  color: string | null;
+  is_completed: boolean;
 }
-
-const savingsGoals: SavingsGoal[] = [
-  {
-    id: "1",
-    name: "Emergency Fund",
-    icon: Heart,
-    target: 300000,
-    saved: 180000,
-    deadline: "Dec 2025",
-    monthlyContribution: 15000,
-  },
-  {
-    id: "2",
-    name: "Dream Vacation",
-    icon: Plane,
-    target: 200000,
-    saved: 85000,
-    deadline: "Jun 2025",
-    monthlyContribution: 20000,
-  },
-  {
-    id: "3",
-    name: "Home Down Payment",
-    icon: Home,
-    target: 1000000,
-    saved: 450000,
-    deadline: "Dec 2026",
-    monthlyContribution: 25000,
-  },
-  {
-    id: "4",
-    name: "Education Fund",
-    icon: GraduationCap,
-    target: 500000,
-    saved: 120000,
-    deadline: "Mar 2027",
-    monthlyContribution: 10000,
-  },
-];
 
 interface BankRate {
   name: string;
-  savingsRate: number;
-  fdRate1yr: number;
-  fdRate3yr: number;
-  fdRate5yr: number;
-  minBalance: number;
-  rating: number;
+  savings_rate: number | null;
+  fd_rate_1yr: number | null;
+  fd_rate_3yr: number | null;
+  fd_rate_5yr: number | null;
+  min_balance: number | null;
 }
 
-const bankRates: BankRate[] = [
-  { name: "SBI", savingsRate: 2.7, fdRate1yr: 6.8, fdRate3yr: 7.0, fdRate5yr: 6.5, minBalance: 3000, rating: 4.5 },
-  { name: "HDFC Bank", savingsRate: 3.0, fdRate1yr: 6.6, fdRate3yr: 7.0, fdRate5yr: 7.0, minBalance: 10000, rating: 4.7 },
-  { name: "ICICI Bank", savingsRate: 3.0, fdRate1yr: 6.7, fdRate3yr: 7.0, fdRate5yr: 7.0, minBalance: 10000, rating: 4.6 },
-  { name: "Axis Bank", savingsRate: 3.0, fdRate1yr: 6.7, fdRate3yr: 7.1, fdRate5yr: 7.0, minBalance: 10000, rating: 4.4 },
-  { name: "Kotak Bank", savingsRate: 3.5, fdRate1yr: 6.2, fdRate3yr: 6.4, fdRate5yr: 6.5, minBalance: 0, rating: 4.3 },
-  { name: "IndusInd Bank", savingsRate: 4.0, fdRate1yr: 7.25, fdRate3yr: 7.5, fdRate5yr: 7.25, minBalance: 10000, rating: 4.2 },
-];
+const iconMap: Record<string, React.ElementType> = {
+  heart: Heart,
+  plane: Plane,
+  home: Home,
+  graduation: GraduationCap,
+  target: Target,
+};
 
 export default function Savings() {
-  const totalSaved = savingsGoals.reduce((acc, goal) => acc + goal.saved, 0);
-  const totalTarget = savingsGoals.reduce((acc, goal) => acc + goal.target, 0);
+  const { user } = useAuth();
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [bankRates, setBankRates] = useState<BankRate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  const fetchData = async () => {
+    try {
+      // Fetch user's savings goals
+      const { data: goalsData } = await supabase
+        .from("savings_goals")
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("created_at", { ascending: false });
+
+      // Fetch bank rates for comparison
+      const { data: banksData } = await supabase
+        .from("banks")
+        .select("name, savings_rate, fd_rate_1yr, fd_rate_3yr, fd_rate_5yr, min_balance")
+        .order("savings_rate", { ascending: false })
+        .limit(8);
+
+      setGoals(goalsData || []);
+      setBankRates(banksData || []);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sample goals if user has none
+  const displayGoals = goals.length > 0 ? goals : [
+    {
+      id: "1",
+      name: "Emergency Fund",
+      target_amount: 300000,
+      current_amount: 180000,
+      deadline: "2025-12-31",
+      icon: "heart",
+      color: null,
+      is_completed: false,
+    },
+    {
+      id: "2",
+      name: "Dream Vacation",
+      target_amount: 200000,
+      current_amount: 85000,
+      deadline: "2025-06-30",
+      icon: "plane",
+      color: null,
+      is_completed: false,
+    },
+    {
+      id: "3",
+      name: "Home Down Payment",
+      target_amount: 1000000,
+      current_amount: 450000,
+      deadline: "2026-12-31",
+      icon: "home",
+      color: null,
+      is_completed: false,
+    },
+    {
+      id: "4",
+      name: "Education Fund",
+      target_amount: 500000,
+      current_amount: 120000,
+      deadline: "2027-03-31",
+      icon: "graduation",
+      color: null,
+      is_completed: false,
+    },
+  ];
+
+  const totalSaved = displayGoals.reduce((acc, goal) => acc + goal.current_amount, 0);
+  const totalTarget = displayGoals.reduce((acc, goal) => acc + goal.target_amount, 0);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -153,9 +205,13 @@ export default function Savings() {
 
         {/* Goals Grid */}
         <div className="grid md:grid-cols-2 gap-4">
-          {savingsGoals.map((goal) => {
-            const Icon = goal.icon;
-            const percentage = (goal.saved / goal.target) * 100;
+          {displayGoals.map((goal) => {
+            const Icon = iconMap[goal.icon || "target"] || Target;
+            const percentage = (goal.current_amount / goal.target_amount) * 100;
+            const monthlyNeeded = goal.deadline 
+              ? Math.round((goal.target_amount - goal.current_amount) / 
+                  Math.max(1, Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000))))
+              : 0;
 
             return (
               <Card key={goal.id} className="hover:border-primary/30 transition-colors">
@@ -168,7 +224,7 @@ export default function Savings() {
                       <div>
                         <h3 className="font-semibold text-lg">{goal.name}</h3>
                         <p className="text-sm text-muted-foreground">
-                          Target: {goal.deadline}
+                          Target: {goal.deadline ? new Date(goal.deadline).toLocaleDateString("en-IN", { month: "short", year: "numeric" }) : "No deadline"}
                         </p>
                       </div>
                     </div>
@@ -177,24 +233,24 @@ export default function Savings() {
                     </span>
                   </div>
 
-                  <ProgressBar value={goal.saved} max={goal.target} className="mb-4" />
+                  <ProgressBar value={goal.current_amount} max={goal.target_amount} className="mb-4" />
 
                   <div className="flex justify-between text-sm">
                     <div>
                       <p className="text-muted-foreground">Saved</p>
                       <p className="font-semibold text-success">
-                        ₹{goal.saved.toLocaleString()}
+                        ₹{goal.current_amount.toLocaleString()}
                       </p>
                     </div>
                     <div className="text-center">
-                      <p className="text-muted-foreground">Monthly</p>
+                      <p className="text-muted-foreground">Monthly Needed</p>
                       <p className="font-semibold">
-                        ₹{goal.monthlyContribution.toLocaleString()}
+                        ₹{monthlyNeeded.toLocaleString()}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-muted-foreground">Target</p>
-                      <p className="font-semibold">₹{goal.target.toLocaleString()}</p>
+                      <p className="font-semibold">₹{goal.target_amount.toLocaleString()}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -206,7 +262,7 @@ export default function Savings() {
         {/* Bank Rates Comparison */}
         <Card>
           <CardHeader>
-            <CardTitle>Best Savings Account Rates</CardTitle>
+            <CardTitle>Best Savings Account & FD Rates</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -241,13 +297,13 @@ export default function Savings() {
                     >
                       <td className="py-4 px-4 font-medium">{bank.name}</td>
                       <td className="py-4 px-4 text-center text-success font-semibold">
-                        {bank.savingsRate}%
+                        {bank.savings_rate}%
                       </td>
-                      <td className="py-4 px-4 text-center">{bank.fdRate1yr}%</td>
-                      <td className="py-4 px-4 text-center">{bank.fdRate3yr}%</td>
-                      <td className="py-4 px-4 text-center">{bank.fdRate5yr}%</td>
+                      <td className="py-4 px-4 text-center">{bank.fd_rate_1yr}%</td>
+                      <td className="py-4 px-4 text-center">{bank.fd_rate_3yr}%</td>
+                      <td className="py-4 px-4 text-center">{bank.fd_rate_5yr}%</td>
                       <td className="py-4 px-4 text-center text-muted-foreground">
-                        ₹{bank.minBalance.toLocaleString()}
+                        ₹{(bank.min_balance || 0).toLocaleString()}
                       </td>
                     </tr>
                   ))}

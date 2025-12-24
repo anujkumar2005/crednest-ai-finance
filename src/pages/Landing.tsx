@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Eye, EyeOff, Sparkles, ArrowRight, Shield, TrendingUp, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import heroBg from "@/assets/hero-bg.jpg";
 
 export default function Landing() {
@@ -13,38 +14,78 @@ export default function Landing() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, signIn, signUp } = useAuth();
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({ name: "", email: "", password: "" });
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate login - replace with actual auth
-    setTimeout(() => {
-      setIsLoading(false);
+    const { error } = await signIn(loginForm.email, loginForm.password);
+    
+    setIsLoading(false);
+    
+    if (error) {
       toast({
-        title: "Welcome back!",
-        description: "You have been logged in successfully.",
+        title: "Login failed",
+        description: error.message || "Invalid email or password",
+        variant: "destructive",
       });
-      navigate("/dashboard");
-    }, 1000);
+      return;
+    }
+    
+    toast({
+      title: "Welcome back!",
+      description: "You have been logged in successfully.",
+    });
+    navigate("/dashboard");
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (signupForm.password.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
-    // Simulate signup - replace with actual auth
-    setTimeout(() => {
-      setIsLoading(false);
+    const { error } = await signUp(signupForm.email, signupForm.password, signupForm.name);
+    
+    setIsLoading(false);
+    
+    if (error) {
+      let message = error.message;
+      if (message.includes("already registered")) {
+        message = "This email is already registered. Please login instead.";
+      }
       toast({
-        title: "Account created!",
-        description: "Welcome to CredNest AI.",
+        title: "Signup failed",
+        description: message,
+        variant: "destructive",
       });
-      navigate("/dashboard");
-    }, 1000);
+      return;
+    }
+    
+    toast({
+      title: "Account created!",
+      description: "Welcome to CredNest AI.",
+    });
+    navigate("/dashboard");
   };
 
   const features = [
