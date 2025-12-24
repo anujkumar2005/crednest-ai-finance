@@ -22,7 +22,10 @@ import {
   Gift,
   Smartphone,
   Briefcase,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface SavingsGoal {
   id: string;
@@ -42,6 +45,12 @@ interface BankRate {
   fd_rate_3yr: number | null;
   fd_rate_5yr: number | null;
   min_balance: number | null;
+}
+
+interface LiveRatesResponse {
+  rates: BankRate[];
+  lastUpdated: string;
+  citations: string[];
 }
 
 const iconMap: Record<string, React.ElementType> = {
@@ -73,6 +82,8 @@ export default function Savings() {
   const { toast } = useToast();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [bankRates, setBankRates] = useState<BankRate[]>([]);
+  const [liveRatesUpdated, setLiveRatesUpdated] = useState<string | null>(null);
+  const [loadingLiveRates, setLoadingLiveRates] = useState(false);
   const [loading, setLoading] = useState(true);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [addSavingsOpen, setAddSavingsOpen] = useState(false);
@@ -90,6 +101,7 @@ export default function Savings() {
   useEffect(() => {
     if (user) {
       fetchData();
+      fetchLiveRates();
     }
   }, [user]);
 
@@ -104,7 +116,7 @@ export default function Savings() {
 
       if (goalsError) throw goalsError;
 
-      // Fetch bank rates for comparison
+      // Fetch bank rates as fallback
       const { data: banksData, error: banksError } = await supabase
         .from("banks")
         .select("name, savings_rate, fd_rate_1yr, fd_rate_3yr, fd_rate_5yr, min_balance")
@@ -114,7 +126,10 @@ export default function Savings() {
       if (banksError) throw banksError;
 
       setGoals(goalsData || []);
-      setBankRates(banksData || []);
+      // Only use DB rates if live rates haven't loaded
+      if (bankRates.length === 0) {
+        setBankRates(banksData || []);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
       toast({
@@ -124,6 +139,44 @@ export default function Savings() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLiveRates = async () => {
+    setLoadingLiveRates(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-bank-rates`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch live rates");
+      }
+
+      const data: LiveRatesResponse = await response.json();
+      
+      if (data.rates && data.rates.length > 0) {
+        setBankRates(data.rates);
+        setLiveRatesUpdated(data.lastUpdated);
+        toast({
+          title: "Live Rates Updated",
+          description: "Bank rates have been refreshed with latest data",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching live rates:", error);
+      // Keep using database rates as fallback
+    } finally {
+      setLoadingLiveRates(false);
     }
   };
 
@@ -526,8 +579,33 @@ export default function Savings() {
         {/* Bank Rates Comparison */}
         {bankRates.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle>Best Savings Account & FD Rates</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  Best Savings Account & FD Rates
+                  {liveRatesUpdated && (
+                    <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
+                      <Zap className="h-3 w-3" />
+                      Live
+                    </Badge>
+                  )}
+                </CardTitle>
+                {liveRatesUpdated && (
+                  <p className="text-xs text-muted-foreground">
+                    Last updated: {new Date(liveRatesUpdated).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchLiveRates}
+                disabled={loadingLiveRates}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingLiveRates ? "animate-spin" : ""}`} />
+                {loadingLiveRates ? "Fetching..." : "Refresh Rates"}
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -555,23 +633,23 @@ export default function Savings() {
                     </tr>
                   </thead>
                   <tbody>
-                    {bankRates.map((bank) => (
+                    {bankRates.map((bank, index) => (
                       <tr
-                        key={bank.name}
+                        key={`${bank.name}-${index}`}
                         className="border-b border-border/30 hover:bg-secondary/30 transition-colors"
                       >
                         <td className="py-4 px-4 font-medium">{bank.name}</td>
                         <td className="py-4 px-4 text-center text-success font-semibold">
-                          {bank.savings_rate ?? "-"}%
+                          {bank.savings_rate != null ? `${bank.savings_rate}%` : "-"}
                         </td>
                         <td className="py-4 px-4 text-center">
-                          {bank.fd_rate_1yr ?? "-"}%
+                          {bank.fd_rate_1yr != null ? `${bank.fd_rate_1yr}%` : "-"}
                         </td>
                         <td className="py-4 px-4 text-center">
-                          {bank.fd_rate_3yr ?? "-"}%
+                          {bank.fd_rate_3yr != null ? `${bank.fd_rate_3yr}%` : "-"}
                         </td>
                         <td className="py-4 px-4 text-center">
-                          {bank.fd_rate_5yr ?? "-"}%
+                          {bank.fd_rate_5yr != null ? `${bank.fd_rate_5yr}%` : "-"}
                         </td>
                         <td className="py-4 px-4 text-center text-muted-foreground">
                           ₹{(bank.min_balance || 0).toLocaleString()}
