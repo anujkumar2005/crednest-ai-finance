@@ -1,9 +1,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Get allowed origins from environment or use defaults
+const getAllowedOrigins = (): string[] => {
+  const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
+  if (envOrigins) {
+    return envOrigins.split(",").map(o => o.trim());
+  }
+  // Default allowed origins for development and production
+  return [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://lovable.dev",
+  ];
+};
+
+const getCorsHeaders = (origin: string | null): Record<string, string> => {
+  const allowedOrigins = getAllowedOrigins();
+  // Check if origin is allowed or if we should allow any lovable.app subdomain
+  const isAllowed = origin && (
+    allowedOrigins.includes(origin) || 
+    origin.endsWith(".lovable.app") ||
+    origin.endsWith(".lovable.dev")
+  );
+  
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : allowedOrigins[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
 };
 
 interface Message {
@@ -66,38 +91,68 @@ function checkLoanEligibility(monthlyIncome: number, loanAmount: number, cibilSc
 }
 
 serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages, userId, sessionId } = await req.json();
-    
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    // Verify JWT authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("Missing or invalid Authorization header");
+      return new Response(JSON.stringify({ error: "Unauthorized: Missing authentication" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       console.error("LOVABLE_API_KEY is not configured");
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Create client with user's JWT to verify identity
+    const supabaseAuth = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify the user's JWT and get authenticated user
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    
+    if (authError || !user) {
+      console.error("JWT verification failed:", authError?.message);
+      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or expired token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Use the verified user ID from JWT, never trust client-provided userId
+    const verifiedUserId = user.id;
+    console.log("Authenticated user:", verifiedUserId);
+
+    const { messages } = await req.json();
+    
+    // Create service role client for database operations
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     
     // Get the last user message for RAG search
     const lastUserMessage = messages.filter((m: Message) => m.role === "user").pop()?.content || "";
-    console.log("Processing message:", lastUserMessage);
+    console.log("Processing message for user:", verifiedUserId, "Message:", lastUserMessage.substring(0, 100));
 
     // Search for relevant financial corpus data (RAG)
     let ragContext = "";
     try {
-      // Extract keywords from user message for search
       const searchTerms = lastUserMessage.toLowerCase();
       
-      // Build search query based on keywords
-      let query = supabase.from("financial_corpus").select("*");
-      
-      // Search in multiple fields
       const { data: corpusData, error: corpusError } = await supabase
         .from("financial_corpus")
         .select("title, content, category, subcategory, bank_name")
@@ -108,7 +163,6 @@ serve(async (req) => {
       }
 
       if (corpusData && corpusData.length > 0) {
-        // Filter relevant corpus based on keyword matching
         const relevantCorpus = corpusData.filter(item => {
           const content = `${item.title} ${item.content} ${item.category} ${item.subcategory || ''} ${item.bank_name || ''}`.toLowerCase();
           return searchTerms.split(' ').some((term: string) => 
@@ -153,7 +207,6 @@ serve(async (req) => {
     // EMI Calculator
     const emiMatch = lowerMessage.match(/(\d+)\s*(lakh|lac|l)?\s*(rupees|rs|₹)?.*?(\d+\.?\d*)\s*%?.*?(\d+)\s*(year|yr|month)/i);
     if (emiMatch || (lowerMessage.includes("emi") && lowerMessage.includes("calculate"))) {
-      // Extract numbers from message
       const numbers = lastUserMessage.match(/\d+\.?\d*/g) || [];
       if (numbers.length >= 3) {
         let principal = parseFloat(numbers[0]);
@@ -162,7 +215,7 @@ serve(async (req) => {
         } else if (lowerMessage.includes("crore")) {
           principal *= 10000000;
         } else if (principal < 1000) {
-          principal *= 100000; // Assume lakhs if small number
+          principal *= 100000;
         }
         const rate = parseFloat(numbers[1]) > 20 ? parseFloat(numbers[1]) / 10 : parseFloat(numbers[1]);
         let tenure = parseFloat(numbers[2]);
@@ -183,8 +236,8 @@ serve(async (req) => {
         let amount = parseFloat(numbers[1]);
         let cibil = numbers.length > 2 ? parseFloat(numbers[2]) : 700;
         
-        if (income < 10000) income *= 1000; // Convert to actual amount
-        if (amount < 1000) amount *= 100000; // Convert lakhs
+        if (income < 10000) income *= 1000;
+        if (amount < 1000) amount *= 100000;
         if (cibil < 300 || cibil > 900) cibil = 700;
         
         const eligibility = checkLoanEligibility(income, amount, cibil);
@@ -250,7 +303,7 @@ Keep responses focused, practical, and helpful for Indian financial planning.`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages.slice(-8), // Keep last 8 messages for context
+          ...messages.slice(-8),
         ],
         stream: true,
       }),
@@ -286,6 +339,7 @@ Keep responses focused, practical, and helpful for Indian financial planning.`;
     
   } catch (error) {
     console.error("Chat function error:", error);
+    const corsHeaders = getCorsHeaders(null);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

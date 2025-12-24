@@ -1,12 +1,32 @@
-# Welcome to your Lovable project
+# CredNest AI - Financial Planning Platform
 
-## Project info
+A comprehensive AI-powered financial advisor for Indian users with loan comparison, investment tracking, and insurance planning.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
+- 🤖 AI Financial Advisor (Gemini 2.5 Flash + RAG)
+- 🏦 Bank/Loan Comparison with EMI Calculator
+- 📊 SIP Calculator & Investment Tracking  
+- 🛡️ Insurance Premium Estimator
+- 💰 Budgeting & Savings Goals
 
-## How can I edit this code?
+## Security
+- ✅ JWT authentication in edge functions
+- ✅ XSS protection via React Markdown
+- ✅ Origin-restricted CORS
+- ✅ RLS policies on all tables
 
-There are several ways of editing your application.
+## Tech Stack
+React 18, TypeScript, Tailwind CSS, shadcn/ui, Supabase, Edge Functions
+
+## Getting Started
+```bash
+npm install && npm run dev
+```
+
+## Database Tables
+profiles, chat_sessions, chat_messages, budgets, expenses, incomes, savings_goals, banks, user_loans, investment_funds, insurance_companies, financial_corpus
+
+---
 
 **Use Lovable**
 

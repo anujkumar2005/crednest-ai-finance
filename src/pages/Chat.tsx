@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -196,11 +197,23 @@ export default function Chat() {
     let assistantContent = "";
 
     try {
+      // Get fresh session token for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to use the AI assistant.",
+          variant: "destructive",
+        });
+        setIsTyping(false);
+        return;
+      }
+
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ messages: apiMessages }),
       });
@@ -479,18 +492,9 @@ export default function Chat() {
                           : "chat-bubble-ai"
                       }`}
                     >
-                      <div
-                        className="prose prose-invert prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{
-                          __html: message.content
-                            .replace(/\n/g, "<br>")
-                            .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-                            .replace(/## (.*?)(<br>|$)/g, "<h3>$1</h3>")
-                            .replace(/### (.*?)(<br>|$)/g, "<h4>$1</h4>")
-                            .replace(/- (.*?)(<br>|$)/g, "• $1<br>")
-                            .replace(/\|(.*?)\|/g, "<span>$1</span>"),
-                        }}
-                      />
+                      <div className="prose prose-invert prose-sm max-w-none [&>h1]:text-lg [&>h2]:text-base [&>h3]:text-sm [&>h4]:text-sm [&>p]:my-1 [&>ul]:my-1 [&>ol]:my-1 [&>table]:text-xs">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 ))}
