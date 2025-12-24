@@ -8,17 +8,8 @@ interface DevAuthContextType {
 
 const DevAuthContext = createContext<DevAuthContextType | undefined>(undefined);
 
-// SHA-256 hash of the developer password
-// Password is "Anuj@2005"
-const DEV_PASSWORD_HASH = "5a39bead318f306939acb1d016647be2e38c6501c58571f981f5d8e8d8f40899";
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+// Developer password
+const DEV_PASSWORD = "Anuj@2005";
 
 export function DevAuthProvider({ children }: { children: React.ReactNode }) {
   const [isDevAuthenticated, setIsDevAuthenticated] = useState(false);
@@ -37,21 +28,16 @@ export function DevAuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const devLogin = (password: string): boolean => {
-    // Synchronous check for immediate validation
-    hashPassword(password).then((hash) => {
-      if (hash === DEV_PASSWORD_HASH) {
-        setIsDevAuthenticated(true);
-        // Session expires in 1 hour
-        sessionStorage.setItem(
-          "dev_session",
-          JSON.stringify({ expiry: Date.now() + 60 * 60 * 1000 })
-        );
-      }
-    });
-    
-    // For immediate feedback, do a simple check
-    // The actual security is in the hash comparison above
-    return true;
+    if (password === DEV_PASSWORD) {
+      setIsDevAuthenticated(true);
+      // Session expires in 1 hour
+      sessionStorage.setItem(
+        "dev_session",
+        JSON.stringify({ expiry: Date.now() + 60 * 60 * 1000 })
+      );
+      return true;
+    }
+    return false;
   };
 
   const devLogout = () => {
