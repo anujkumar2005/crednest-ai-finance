@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +24,8 @@ import {
   TrendingDown,
   BadgeCheck,
   ArrowRight,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import {
   PieChart,
@@ -52,6 +55,19 @@ interface Bank {
   customer_care: string | null;
 }
 
+interface LiveLoanRate {
+  name: string;
+  personal_loan_rate: number;
+  home_loan_rate: number;
+  car_loan_rate: number;
+  education_loan_rate: number;
+  business_loan_rate: number;
+  processing_fee: number;
+  max_tenure_years: number;
+  min_cibil_score: number;
+  rating: number;
+}
+
 const loanTypes = [
   { value: "All", label: "All Loans" },
   { value: "Personal", label: "Personal" },
@@ -63,6 +79,9 @@ const loanTypes = [
 
 export default function Loans() {
   const [banks, setBanks] = useState<Bank[]>([]);
+  const [liveBanks, setLiveBanks] = useState<LiveLoanRate[]>([]);
+  const [liveUpdated, setLiveUpdated] = useState<string | null>(null);
+  const [loadingLive, setLoadingLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLoanType, setSelectedLoanType] = useState("All");
@@ -76,6 +95,7 @@ export default function Loans() {
 
   useEffect(() => {
     fetchBanks();
+    fetchLiveBanks();
   }, []);
 
   const fetchBanks = async () => {
@@ -106,6 +126,40 @@ export default function Loans() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLiveBanks = async () => {
+    setLoadingLive(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-loan-rates`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch live loan rates");
+      }
+
+      const data = await response.json();
+      
+      if (data.banks && data.banks.length > 0) {
+        setLiveBanks(data.banks);
+        setLiveUpdated(data.lastUpdated);
+        toast({
+          title: "Live Rates Updated",
+          description: "Loan rates have been refreshed",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching live loan rates:", error);
+    } finally {
+      setLoadingLive(false);
     }
   };
 
@@ -334,6 +388,93 @@ export default function Loans() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Live Loan Rates Section */}
+        {liveBanks.length > 0 && (
+          <Card className="border-success/30">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-success" />
+                  Live Loan Rates - Top Banks
+                  <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
+                    <Zap className="h-3 w-3" />
+                    Live
+                  </Badge>
+                </CardTitle>
+                {liveUpdated && (
+                  <p className="text-xs text-muted-foreground">
+                    Last updated: {new Date(liveUpdated).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchLiveBanks}
+                disabled={loadingLive}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingLive ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {liveBanks.slice(0, 6).map((bank, index) => (
+                  <Card key={index} className="bg-secondary/30 border-border/50">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-sm">{bank.name}</h4>
+                          <div className="flex items-center gap-1 mt-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-3 w-3 ${
+                                  i < bank.rating
+                                    ? "text-primary fill-primary"
+                                    : "text-muted-foreground"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        {index === 0 && (
+                          <Badge className="bg-success/20 text-success text-xs">
+                            Best Rate
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Home:</span>
+                          <span className="ml-1 font-bold text-success">{bank.home_loan_rate}%</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Personal:</span>
+                          <span className="ml-1 font-medium">{bank.personal_loan_rate}%</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Car:</span>
+                          <span className="ml-1 font-medium">{bank.car_loan_rate}%</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Education:</span>
+                          <span className="ml-1 font-medium">{bank.education_loan_rate}%</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between mt-3 pt-2 border-t border-border/50 text-xs text-muted-foreground">
+                        <span>Processing: {bank.processing_fee}%</span>
+                        <span>CIBIL: {bank.min_cibil_score}+</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">

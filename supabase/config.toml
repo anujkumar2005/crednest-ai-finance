@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.live-insurance-rates]
 verify_jwt = false
+
+[functions.live-loan-rates]
+verify_jwt = false
