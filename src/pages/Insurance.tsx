@@ -163,11 +163,11 @@ export default function Insurance() {
   };
 
   const filteredCompanies = companies
+    .filter((company) => company.name.toLowerCase().includes(searchQuery.toLowerCase()))
     .filter((company) => {
       if (selectedType === "All") return true;
       return getTypes(company).includes(selectedType);
-    })
-    .filter((company) => company.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    });
 
   if (loading) {
     return (
