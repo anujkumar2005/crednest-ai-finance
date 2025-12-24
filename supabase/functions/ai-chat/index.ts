@@ -116,11 +116,22 @@ serve(async (req) => {
 
     if (!LOVABLE_API_KEY) {
       console.error("LOVABLE_API_KEY is not configured");
-      throw new Error("LOVABLE_API_KEY is not configured");
+      return new Response(JSON.stringify({ error: "AI service not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("Missing Supabase configuration");
+      return new Response(JSON.stringify({ error: "Server configuration error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Create client with user's JWT to verify identity
-    const supabaseAuth = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } }
     });
 
@@ -139,10 +150,19 @@ serve(async (req) => {
     const verifiedUserId = user.id;
     console.log("Authenticated user:", verifiedUserId);
 
-    const { messages } = await req.json();
+    const body = await req.json();
+    const { messages } = body;
+    
+    if (!messages || !Array.isArray(messages)) {
+      console.error("Invalid messages format");
+      return new Response(JSON.stringify({ error: "Invalid request: messages required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     
     // Create service role client for database operations
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     // Get the last user message for RAG search
     const lastUserMessage = messages.filter((m: Message) => m.role === "user").pop()?.content || "";
