@@ -10,17 +10,8 @@ interface DevProtectedRouteProps {
   children: React.ReactNode;
 }
 
-// SHA-256 hash of the developer password
-// Password is "Anuj@2005"
-const DEV_PASSWORD_HASH = "5a39bead318f306939acb1d016647be2e38c6501c58571f981f5d8e8d8f40899";
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+// Developer password
+const DEV_PASSWORD = "Anuj@2005";
 
 export function DevProtectedRoute({ children }: DevProtectedRouteProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -36,8 +27,8 @@ export function DevProtectedRoute({ children }: DevProtectedRouteProps) {
     const devSession = sessionStorage.getItem("dev_session");
     if (devSession) {
       try {
-        const { expiry, hash } = JSON.parse(devSession);
-        if (Date.now() < expiry && hash === DEV_PASSWORD_HASH.substring(0, 16)) {
+        const { expiry } = JSON.parse(devSession);
+        if (Date.now() < expiry) {
           setIsAuthenticated(true);
         } else {
           sessionStorage.removeItem("dev_session");
@@ -66,17 +57,12 @@ export function DevProtectedRoute({ children }: DevProtectedRouteProps) {
     // Add artificial delay to prevent brute force
     await new Promise((resolve) => setTimeout(resolve, 500));
     
-    const hash = await hashPassword(password);
-    
-    if (hash === DEV_PASSWORD_HASH) {
+    if (password === DEV_PASSWORD) {
       setIsAuthenticated(true);
       // Session expires in 1 hour
       sessionStorage.setItem(
         "dev_session",
-        JSON.stringify({ 
-          expiry: Date.now() + 60 * 60 * 1000,
-          hash: DEV_PASSWORD_HASH.substring(0, 16)
-        })
+        JSON.stringify({ expiry: Date.now() + 60 * 60 * 1000 })
       );
       toast({
         title: "Developer access granted",
