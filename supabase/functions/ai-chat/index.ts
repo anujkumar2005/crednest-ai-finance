@@ -1,8 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-// CORS: allow the app preview + production origins.
-// Auth is enforced via Bearer JWT, so wide CORS is OK here.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -74,13 +72,110 @@ function checkLoanEligibility(monthlyIncome: number, loanAmount: number, cibilSc
   };
 }
 
+// Fetch live data from Perplexity for accurate real-time information
+async function fetchLiveDataFromPerplexity(query: string, perplexityKey: string): Promise<string> {
+  try {
+    console.log("Fetching live data from Perplexity for:", query.substring(0, 50));
+    
+    const response = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${perplexityKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "sonar",
+        messages: [
+          {
+            role: "system",
+            content: "You are a financial data researcher. Provide accurate, current data for Indian financial markets, banks, and financial products. Include specific numbers, rates, and dates. Be concise and factual."
+          },
+          {
+            role: "user",
+            content: query
+          }
+        ],
+        search_recency_filter: "week",
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Perplexity API error:", response.status);
+      return "";
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    const citations = data.citations || [];
+    
+    let result = content;
+    if (citations.length > 0) {
+      result += "\n\n**Sources:** " + citations.slice(0, 3).join(", ");
+    }
+    
+    console.log("Perplexity returned data successfully");
+    return result;
+  } catch (error) {
+    console.error("Perplexity fetch error:", error);
+    return "";
+  }
+}
+
+// Determine if query needs live data
+function needsLiveData(message: string): boolean {
+  const liveDataKeywords = [
+    "current", "latest", "today", "now", "live", "recent",
+    "rate", "interest", "nifty", "sensex", "stock", "market",
+    "rbi", "repo", "inflation", "gold price", "fd rate", 
+    "loan rate", "best bank", "compare", "which bank",
+    "mutual fund", "nav", "returns", "performance"
+  ];
+  const lowerMessage = message.toLowerCase();
+  return liveDataKeywords.some(keyword => lowerMessage.includes(keyword));
+}
+
+// Build query for Perplexity based on user message
+function buildPerplexityQuery(message: string): string {
+  const lowerMessage = message.toLowerCase();
+  
+  if (lowerMessage.includes("loan") && (lowerMessage.includes("rate") || lowerMessage.includes("interest"))) {
+    return `Current loan interest rates in India December 2024 - Include home loan, personal loan, car loan rates from major banks like SBI, HDFC, ICICI, Axis. Provide specific percentages.`;
+  }
+  
+  if (lowerMessage.includes("fd") || lowerMessage.includes("fixed deposit")) {
+    return `Current FD interest rates in India December 2024 - Best fixed deposit rates from major banks and small finance banks. Include 1 year, 3 year, 5 year rates.`;
+  }
+  
+  if (lowerMessage.includes("mutual fund") || lowerMessage.includes("sip")) {
+    return `Top performing mutual funds in India December 2024 - Best equity, debt, and hybrid funds with 1 year returns and ratings.`;
+  }
+  
+  if (lowerMessage.includes("gold")) {
+    return `Current gold price in India today December 2024 - 24 karat and 22 karat gold rates per gram in INR.`;
+  }
+  
+  if (lowerMessage.includes("nifty") || lowerMessage.includes("sensex") || lowerMessage.includes("stock")) {
+    return `Current Nifty 50 and Sensex levels December 2024 - Latest market data and performance.`;
+  }
+  
+  if (lowerMessage.includes("rbi") || lowerMessage.includes("repo")) {
+    return `Current RBI repo rate and monetary policy December 2024 - Latest interest rate decisions.`;
+  }
+  
+  if (lowerMessage.includes("insurance")) {
+    return `Best insurance companies in India 2024 - Claim settlement ratios and premium rates for life and health insurance.`;
+  }
+  
+  // Default financial query
+  return `Latest information about: ${message} - Focus on Indian financial context with current rates and data from December 2024.`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify JWT authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       console.error("Missing or invalid Authorization header");
@@ -94,6 +189,7 @@ serve(async (req) => {
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       console.error("LOVABLE_API_KEY is not configured");
@@ -111,10 +207,7 @@ serve(async (req) => {
       });
     }
 
-    // Verify the user's JWT and get authenticated user
-    // IMPORTANT: In backend functions we must pass the JWT explicitly.
     const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
-
     const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false },
     });
@@ -132,7 +225,6 @@ serve(async (req) => {
       });
     }
 
-    // Use the verified user ID from JWT, never trust client-provided userId
     const verifiedUserId = user.id;
     console.log("Authenticated user:", verifiedUserId);
 
@@ -147,12 +239,19 @@ serve(async (req) => {
       });
     }
     
-    // Create service role client for database operations
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    
-    // Get the last user message for RAG search
     const lastUserMessage = messages.filter((m: Message) => m.role === "user").pop()?.content || "";
     console.log("Processing message for user:", verifiedUserId, "Message:", lastUserMessage.substring(0, 100));
+
+    // Fetch live data from Perplexity if needed
+    let liveDataContext = "";
+    if (PERPLEXITY_API_KEY && needsLiveData(lastUserMessage)) {
+      const perplexityQuery = buildPerplexityQuery(lastUserMessage);
+      const liveData = await fetchLiveDataFromPerplexity(perplexityQuery, PERPLEXITY_API_KEY);
+      if (liveData) {
+        liveDataContext = `\n\n### 📊 Live Data (Fetched from Internet - December 2024):\n${liveData}\n`;
+      }
+    }
 
     // Search for relevant financial corpus data (RAG)
     let ragContext = "";
@@ -197,16 +296,16 @@ serve(async (req) => {
         .limit(10);
 
       if (banks && banks.length > 0) {
-        bankContext = "\n\n### Current Bank Rates (Top Banks):\n" +
+        bankContext = "\n\n### Current Bank Rates (Database):\n" +
           banks.map(b => 
-            `- **${b.name}**: Personal ${b.personal_loan_rate}%, Home ${b.home_loan_rate}%, Car ${b.car_loan_rate}%, Education ${b.education_loan_rate}% | Processing: ${b.processing_fee}% | Min CIBIL: ${b.min_cibil_score} | Rating: ${b.rating}/5 | Apply: ${b.website}`
+            `- **${b.name}**: Personal ${b.personal_loan_rate}%, Home ${b.home_loan_rate}%, Car ${b.car_loan_rate}%, Education ${b.education_loan_rate}% | Processing: ${b.processing_fee}% | Min CIBIL: ${b.min_cibil_score} | Rating: ${b.rating}/5`
           ).join("\n");
       }
     } catch (bankError) {
       console.error("Bank fetch error:", bankError);
     }
 
-    // Process tool calls if detected in message
+    // Process tool calls
     let toolResult = "";
     const lowerMessage = lastUserMessage.toLowerCase();
     
@@ -251,8 +350,8 @@ serve(async (req) => {
       }
     }
 
-    // Build system prompt with RAG context
-    const systemPrompt = `You are CredNest AI, a specialized financial advisor assistant EXCLUSIVELY for Indian users. You ONLY discuss finance, money, and banking-related topics.
+    // Build enhanced system prompt
+    const systemPrompt = `You are CredNest AI, a specialized financial advisor assistant EXCLUSIVELY for Indian users. You provide accurate, structured, and professional financial guidance.
 
 ## YOUR EXPERTISE AREAS (ONLY respond to these topics):
 - Personal finance management, budgeting, and expense tracking
@@ -266,38 +365,34 @@ serve(async (req) => {
 - Retirement planning and wealth management
 - Financial goal setting and emergency fund planning
 
-## STRICT RULES - FOLLOW THESE EXACTLY:
-1. **ONLY ANSWER FINANCE-RELATED QUESTIONS** - If a question is NOT about money, finance, banking, loans, investments, insurance, or budgeting, politely decline with: "I'm CredNest AI, your dedicated financial advisor. I specialize only in finance, banking, loans, investments, and money management. Please ask me about these topics, and I'll be happy to help! 💰"
+## RESPONSE FORMATTING RULES:
+1. **Always use structured markdown** with clear headers, bullet points, and tables
+2. **Start with a brief summary** (1-2 sentences) of your answer
+3. **Use tables for comparisons** and numerical data
+4. **Highlight key numbers** using bold text
+5. **Provide actionable steps** when giving advice
+6. **End with a relevant tip** or next step recommendation
 
-2. **OFF-TOPIC EXAMPLES TO DECLINE:**
-   - General knowledge questions (history, science, geography, etc.)
-   - Entertainment (movies, music, games, sports)
-   - Technology (coding, apps, gadgets - unless about fintech)
-   - Recipes, health advice, travel planning (unless travel insurance)
-   - Jokes, stories, or general conversation
-   - Any topic not directly related to money and finance
+## DATA PRIORITY:
+1. Use LIVE DATA from Perplexity when available (most accurate and current)
+2. Cross-reference with database bank rates
+3. Always mention data source and date when providing rates
 
-3. **RESPONSE QUALITY:**
-   - Always be professional, accurate, and helpful
-   - Use markdown formatting with headers, bullet points, and tables
-   - Include specific bank rates and data when available
-   - Provide actionable, step-by-step guidance
-   - Use Indian Rupee (₹) formatting
-   - Recommend verifying rates on official bank websites
+## STRICT RULES:
+1. **ONLY ANSWER FINANCE-RELATED QUESTIONS** - Politely decline non-financial queries
+2. Use Indian Rupee (₹) formatting
+3. Reference actual rates and data when available
+4. Recommend verifying rates on official sources
+5. Never provide specific investment recommendations without disclaimers
 
-4. **SAFETY:**
-   - Never provide specific investment recommendations
-   - Always prioritize user's financial safety
-   - Encourage diversification and risk assessment
-   - Suggest consulting certified financial advisors for major decisions
-
+${liveDataContext}
 ${ragContext}
 ${bankContext}
 ${toolResult}
 
-If tool calculations (EMI, eligibility) are provided above, include them in your response and explain the results clearly.
-When users ask about loans, always reference the actual bank rates from our database.
-Keep responses focused, practical, and helpful for Indian financial planning.`;
+If live data is provided above, prioritize it as it contains the most current information from the internet.
+If tool calculations (EMI, eligibility) are provided, include them prominently in your response.
+Structure your response clearly with headers and make it easy to scan.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -309,7 +404,7 @@ Keep responses focused, practical, and helpful for Indian financial planning.`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages.slice(-8),
+          ...messages.slice(-10),
         ],
         stream: true,
       }),
@@ -338,7 +433,6 @@ Keep responses focused, practical, and helpful for Indian financial planning.`;
       });
     }
 
-    // Return streaming response
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });

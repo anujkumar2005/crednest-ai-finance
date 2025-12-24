@@ -16,6 +16,8 @@ import {
   Plus,
   Trash2,
   Loader2,
+  Globe,
+  Zap,
 } from "lucide-react";
 
 interface Message {
@@ -39,6 +41,11 @@ const quickActions = [
     prompt: "Help me calculate EMI for a home loan of ₹50 lakhs at 8.5% interest for 20 years",
   },
   {
+    icon: Globe,
+    label: "Current Rates",
+    prompt: "What are the current home loan interest rates from major banks in India?",
+  },
+  {
     icon: FileText,
     label: "Loan Documents",
     prompt: "What documents do I need for a personal loan application?",
@@ -58,6 +65,7 @@ export default function Chat() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [typingPhase, setTypingPhase] = useState<"searching" | "analyzing" | "generating">("searching");
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -178,6 +186,11 @@ export default function Chat() {
     );
     setInput("");
     setIsTyping(true);
+    setTypingPhase("searching");
+
+    // Simulate phase transitions for better UX
+    const phaseTimer1 = setTimeout(() => setTypingPhase("analyzing"), 1500);
+    const phaseTimer2 = setTimeout(() => setTypingPhase("generating"), 3000);
 
     // Save user message to database
     await saveMessage(activeSession.id, "user", message);
@@ -346,6 +359,8 @@ export default function Chat() {
         variant: "destructive",
       });
     } finally {
+      clearTimeout(phaseTimer1);
+      clearTimeout(phaseTimer2);
       setIsTyping(false);
     }
   };
@@ -522,9 +537,34 @@ export default function Chat() {
                 ))}
                 {isTyping && (
                   <div className="flex justify-start">
-                    <div className="chat-bubble-ai flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Thinking...</span>
+                    <div className="chat-bubble-ai">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          {typingPhase === "searching" && (
+                            <>
+                              <Globe className="h-4 w-4 animate-pulse text-info" />
+                              <span className="text-sm">Searching latest data...</span>
+                            </>
+                          )}
+                          {typingPhase === "analyzing" && (
+                            <>
+                              <Zap className="h-4 w-4 animate-pulse text-warning" />
+                              <span className="text-sm">Analyzing information...</span>
+                            </>
+                          )}
+                          {typingPhase === "generating" && (
+                            <>
+                              <Sparkles className="h-4 w-4 animate-pulse text-primary" />
+                              <span className="text-sm">Generating response...</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
