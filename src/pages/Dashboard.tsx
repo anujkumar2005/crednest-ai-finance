@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/ui/stat-card";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Wallet,
   TrendingUp,
   TrendingDown,
-  PiggyBank,
   Target,
   MessageSquare,
   ArrowRight,
@@ -35,72 +33,105 @@ import {
   Cell,
   BarChart,
   Bar,
-  Legend,
 } from "recharts";
 
-// Monthly expense trend data
-const monthlyTrend = [
-  { month: "Jul", income: 82000, expenses: 58000 },
-  { month: "Aug", income: 85000, expenses: 54000 },
-  { month: "Sep", income: 85000, expenses: 62000 },
-  { month: "Oct", income: 88000, expenses: 49000 },
-  { month: "Nov", income: 85000, expenses: 55000 },
-  { month: "Dec", income: 92000, expenses: 52300 },
-];
-
-// Budget category breakdown
-const budgetBreakdown = [
-  { name: "Food", value: 8500, color: "hsl(var(--destructive))" },
-  { name: "Rent/EMI", value: 25000, color: "hsl(var(--primary))" },
-  { name: "Transport", value: 3200, color: "hsl(var(--info))" },
-  { name: "Shopping", value: 4500, color: "hsl(var(--success))" },
-  { name: "Bills", value: 7800, color: "hsl(var(--warning))" },
-  { name: "Others", value: 3300, color: "hsl(var(--muted-foreground))" },
-];
-
-// Savings vs Target data
-const savingsProgress = [
-  { name: "Emergency", saved: 180000, target: 300000 },
-  { name: "Vacation", saved: 85000, target: 200000 },
-  { name: "Home", saved: 450000, target: 1000000 },
-  { name: "Education", saved: 120000, target: 500000 },
-];
-
-const recentTransactions = [
-  { id: 1, name: "Grocery Store", amount: -2450, category: "Food", date: "Today", icon: "🛒" },
-  { id: 2, name: "Salary Credit", amount: 92000, category: "Income", date: "Dec 20", icon: "💰" },
-  { id: 3, name: "Netflix Subscription", amount: -649, category: "Entertainment", date: "Dec 19", icon: "🎬" },
-  { id: 4, name: "Uber Ride", amount: -320, category: "Transportation", date: "Dec 18", icon: "🚗" },
-  { id: 5, name: "Electricity Bill", amount: -2100, category: "Bills", date: "Dec 17", icon: "💡" },
-];
-
-const upcomingBills = [
-  { name: "Credit Card EMI", amount: 15000, dueDate: "Dec 28", status: "upcoming" },
-  { name: "Internet Bill", amount: 1499, dueDate: "Jan 2", status: "upcoming" },
-  { name: "Insurance Premium", amount: 5000, dueDate: "Jan 5", status: "upcoming" },
-];
+const CATEGORY_COLORS: Record<string, string> = {
+  "Food & Dining": "hsl(var(--destructive))",
+  "Transportation": "hsl(var(--info))",
+  "Shopping": "hsl(var(--success))",
+  "Bills & Utilities": "hsl(var(--warning))",
+  "Entertainment": "hsl(var(--primary))",
+  "Healthcare": "hsl(var(--accent-foreground))",
+  "Education": "hsl(var(--secondary-foreground))",
+  "Other": "hsl(var(--muted-foreground))",
+};
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState<{ name: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ name: string | null; monthly_income: number | null } | null>(null);
+  const [budgets, setBudgets] = useState<Array<{ category: string; planned_amount: number; spent_amount: number | null }>>([]);
+  const [savingsGoals, setSavingsGoals] = useState<Array<{ name: string; current_amount: number | null; target_amount: number }>>([]);
+  const [incomes, setIncomes] = useState<Array<{ amount: number; date: string }>>([]);
+  const [expenses, setExpenses] = useState<Array<{ amount: number; date: string; category: string }>>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      fetchProfile();
+      fetchAllData();
     }
   }, [user]);
 
-  const fetchProfile = async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("name")
-      .eq("user_id", user?.id)
-      .single();
-    setProfile(data);
+  const fetchAllData = async () => {
+    setLoading(true);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    
+    const [profileRes, budgetsRes, savingsRes, incomesRes, expensesRes] = await Promise.all([
+      supabase.from("profiles").select("name, monthly_income").eq("user_id", user?.id).single(),
+      supabase.from("budgets").select("category, planned_amount, spent_amount").eq("user_id", user?.id).eq("month", currentMonth),
+      supabase.from("savings_goals").select("name, current_amount, target_amount").eq("user_id", user?.id).eq("is_completed", false),
+      supabase.from("incomes").select("amount, date").eq("user_id", user?.id),
+      supabase.from("expenses").select("amount, date, category").eq("user_id", user?.id),
+    ]);
+
+    setProfile(profileRes.data);
+    setBudgets(budgetsRes.data || []);
+    setSavingsGoals(savingsRes.data || []);
+    setIncomes(incomesRes.data || []);
+    setExpenses(expensesRes.data || []);
+    setLoading(false);
   };
 
   const displayName = profile?.name || user?.email?.split("@")[0] || "User";
-  const totalExpenses = budgetBreakdown.reduce((acc, item) => acc + item.value, 0);
+  
+  // Calculate totals from real data
+  const totalPlannedBudget = budgets.reduce((acc, b) => acc + (b.planned_amount || 0), 0);
+  const totalSpentExpenses = budgets.reduce((acc, b) => acc + (b.spent_amount || 0), 0);
+  const totalSaved = savingsGoals.reduce((acc, g) => acc + (g.current_amount || 0), 0);
+  const totalSavingsTarget = savingsGoals.reduce((acc, g) => acc + g.target_amount, 0);
+  const monthlyIncome = profile?.monthly_income || 0;
+  const netSavings = monthlyIncome - totalSpentExpenses;
+  const savingsRate = monthlyIncome > 0 ? Math.round((netSavings / monthlyIncome) * 100) : 0;
+
+  // Budget breakdown for pie chart
+  const budgetBreakdown = budgets.map((b) => ({
+    name: b.category,
+    value: b.spent_amount || 0,
+    color: CATEGORY_COLORS[b.category] || "hsl(var(--muted-foreground))",
+  })).filter(b => b.value > 0);
+
+  // Savings progress for bar chart
+  const savingsProgress = savingsGoals.slice(0, 4).map((g) => ({
+    name: g.name.length > 12 ? g.name.slice(0, 12) + "..." : g.name,
+    saved: g.current_amount || 0,
+    target: g.target_amount,
+  }));
+
+  // Monthly trend (last 6 months)
+  const getMonthlyTrend = () => {
+    const months: Record<string, { income: number; expenses: number }> = {};
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toISOString().slice(0, 7);
+      const label = d.toLocaleString("default", { month: "short" });
+      months[key] = { income: 0, expenses: 0 };
+    }
+    incomes.forEach((inc) => {
+      const key = inc.date.slice(0, 7);
+      if (months[key]) months[key].income += Number(inc.amount);
+    });
+    expenses.forEach((exp) => {
+      const key = exp.date.slice(0, 7);
+      if (months[key]) months[key].expenses += Number(exp.amount);
+    });
+    return Object.entries(months).map(([key, val]) => ({
+      month: new Date(key + "-01").toLocaleString("default", { month: "short" }),
+      income: val.income,
+      expenses: val.expenses,
+    }));
+  };
+
+  const monthlyTrend = getMonthlyTrend();
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -128,7 +159,7 @@ export default function Dashboard() {
               Welcome back, {displayName}! 👋
             </h1>
             <p className="text-muted-foreground mt-1">
-              Here's your financial overview for December 2024
+              Here's your financial overview for {new Date().toLocaleString("default", { month: "long", year: "numeric" })}
             </p>
           </div>
           <Link to="/chat">
@@ -142,33 +173,33 @@ export default function Dashboard() {
         {/* Stats Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="Total Balance"
-            value="₹2,45,000"
-            change="+12.5% from last month"
+            title="Total Saved"
+            value={`₹${totalSaved.toLocaleString()}`}
+            change={`${totalSavingsTarget > 0 ? Math.round((totalSaved / totalSavingsTarget) * 100) : 0}% of goal`}
             changeType="positive"
             icon={Wallet}
           />
           <StatCard
             title="Monthly Income"
-            value="₹92,000"
-            change="+8.2% increase"
+            value={`₹${monthlyIncome.toLocaleString()}`}
+            change="From profile"
             changeType="positive"
             icon={TrendingUp}
             iconColor="text-success"
           />
           <StatCard
             title="Monthly Expenses"
-            value={`₹${totalExpenses.toLocaleString()}`}
-            change="-5.2% from last month"
-            changeType="positive"
+            value={`₹${totalSpentExpenses.toLocaleString()}`}
+            change={`₹${totalPlannedBudget.toLocaleString()} budgeted`}
+            changeType={totalSpentExpenses > totalPlannedBudget ? "negative" : "positive"}
             icon={TrendingDown}
             iconColor="text-destructive"
           />
           <StatCard
             title="Net Savings"
-            value={`₹${(92000 - totalExpenses).toLocaleString()}`}
-            change="45% savings rate"
-            changeType="positive"
+            value={`₹${netSavings.toLocaleString()}`}
+            change={`${savingsRate}% savings rate`}
+            changeType={netSavings >= 0 ? "positive" : "negative"}
             icon={Target}
             iconColor="text-primary"
           />
@@ -308,48 +339,49 @@ export default function Dashboard() {
 
         {/* Bottom Grid */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Recent Transactions */}
+          {/* Recent Expenses */}
           <Card className="lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
-                Recent Transactions
+                Recent Expenses
               </CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1">
-                View All <ArrowRight className="h-4 w-4" />
-              </Button>
+              <Link to="/budgeting">
+                <Button variant="ghost" size="sm" className="gap-1">
+                  View All <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentTransactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center text-lg">
-                        {transaction.icon}
-                      </div>
-                      <div>
-                        <p className="font-medium">{transaction.name}</p>
-                        <p className="text-xs text-muted-foreground">{transaction.category} • {transaction.date}</p>
-                      </div>
-                    </div>
-                    <p
-                      className={`font-semibold ${
-                        transaction.amount > 0 ? "text-success" : "text-foreground"
-                      }`}
+                {expenses.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No expenses recorded yet</p>
+                ) : (
+                  expenses.slice(0, 5).map((expense, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
                     >
-                      {transaction.amount > 0 ? "+" : ""}₹
-                      {Math.abs(transaction.amount).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center text-lg">
+                          💸
+                        </div>
+                        <div>
+                          <p className="font-medium">{expense.category}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(expense.date).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <p className="font-semibold text-foreground">
+                        -₹{Number(expense.amount).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Quick Actions & Upcoming Bills */}
+          {/* Quick Actions & Budget Summary */}
           <div className="space-y-6">
             {/* Quick Actions */}
             <Card>
@@ -369,45 +401,51 @@ export default function Dashboard() {
                     </div>
                   </Button>
                 </Link>
-                <Link to="/loans" className="block">
+                <Link to="/budgeting" className="block">
                   <Button variant="glass" className="w-full justify-start gap-3 h-auto py-3">
-                    <IndianRupee className="h-5 w-5 text-success" />
+                    <Calendar className="h-5 w-5 text-warning" />
                     <div className="text-left">
-                      <div className="font-medium">Compare Loans</div>
-                      <div className="text-xs text-muted-foreground">Find best rates</div>
+                      <div className="font-medium">Manage Budget</div>
+                      <div className="text-xs text-muted-foreground">Add expenses & budgets</div>
                     </div>
                   </Button>
                 </Link>
-                <Link to="/investments" className="block">
+                <Link to="/savings" className="block">
                   <Button variant="glass" className="w-full justify-start gap-3 h-auto py-3">
-                    <TrendingUp className="h-5 w-5 text-info" />
+                    <Target className="h-5 w-5 text-success" />
                     <div className="text-left">
-                      <div className="font-medium">Investments</div>
-                      <div className="text-xs text-muted-foreground">Track portfolio</div>
+                      <div className="font-medium">Savings Goals</div>
+                      <div className="text-xs text-muted-foreground">Track your progress</div>
                     </div>
                   </Button>
                 </Link>
               </CardContent>
             </Card>
 
-            {/* Upcoming Bills */}
+            {/* Budget Categories */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-warning" />
-                  Upcoming Bills
+                  Budget Categories
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {upcomingBills.map((bill, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-warning/5 border border-warning/20">
-                    <div>
-                      <p className="font-medium text-sm">{bill.name}</p>
-                      <p className="text-xs text-muted-foreground">Due: {bill.dueDate}</p>
+                {budgets.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4 text-sm">No budgets set</p>
+                ) : (
+                  budgets.slice(0, 3).map((budget, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-warning/5 border border-warning/20">
+                      <div>
+                        <p className="font-medium text-sm">{budget.category}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Spent: ₹{(budget.spent_amount || 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <p className="font-semibold text-warning">₹{budget.planned_amount.toLocaleString()}</p>
                     </div>
-                    <p className="font-semibold text-warning">₹{bill.amount.toLocaleString()}</p>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
