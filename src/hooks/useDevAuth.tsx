@@ -1,52 +1,57 @@
 import { useState, useEffect, createContext, useContext } from "react";
+import { useAuth } from "./useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DevAuthContextType {
   isDevAuthenticated: boolean;
-  devLogin: (password: string) => boolean;
-  devLogout: () => void;
+  isLoading: boolean;
 }
 
 const DevAuthContext = createContext<DevAuthContextType | undefined>(undefined);
 
-// Developer password
-const DEV_PASSWORD = "Anuj@2005";
-
 export function DevAuthProvider({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [isDevAuthenticated, setIsDevAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if dev session exists (expires in 1 hour)
-    const devSession = sessionStorage.getItem("dev_session");
-    if (devSession) {
-      const { expiry } = JSON.parse(devSession);
-      if (Date.now() < expiry) {
-        setIsDevAuthenticated(true);
-      } else {
-        sessionStorage.removeItem("dev_session");
+    const checkAdminRole = async () => {
+      if (!user) {
+        setIsDevAuthenticated(false);
+        setIsLoading(false);
+        return;
       }
-    }
-  }, []);
 
-  const devLogin = (password: string): boolean => {
-    if (password === DEV_PASSWORD) {
-      setIsDevAuthenticated(true);
-      // Session expires in 1 hour
-      sessionStorage.setItem(
-        "dev_session",
-        JSON.stringify({ expiry: Date.now() + 60 * 60 * 1000 })
-      );
-      return true;
-    }
-    return false;
-  };
+      try {
+        // Check if user has admin role using the user_roles table
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
 
-  const devLogout = () => {
-    setIsDevAuthenticated(false);
-    sessionStorage.removeItem("dev_session");
-  };
+        if (error) {
+          console.error("Error checking admin role:", error);
+          setIsDevAuthenticated(false);
+        } else {
+          setIsDevAuthenticated(!!data);
+        }
+      } catch (err) {
+        console.error("Failed to check admin role:", err);
+        setIsDevAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (!authLoading) {
+      checkAdminRole();
+    }
+  }, [user, authLoading]);
 
   return (
-    <DevAuthContext.Provider value={{ isDevAuthenticated, devLogin, devLogout }}>
+    <DevAuthContext.Provider value={{ isDevAuthenticated, isLoading }}>
       {children}
     </DevAuthContext.Provider>
   );

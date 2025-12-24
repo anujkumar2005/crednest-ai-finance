@@ -45,25 +45,47 @@ export default function Developer() {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const loadAllData = async () => {
     setLoading(true);
+    setAccessError(null);
     try {
-      // Use edge function to bypass RLS and get all stats
+      // Get the user's session token
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error("No active session");
+      }
+
+      // Use edge function with JWT authentication
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-stats`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
         }
       );
 
+      if (response.status === 403) {
+        setAccessError("Access denied. Admin role required.");
+        setLoading(false);
+        return;
+      }
+
+      if (response.status === 401) {
+        setAccessError("Authentication failed. Please log in again.");
+        setLoading(false);
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error("Failed to fetch admin stats");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to fetch admin stats");
       }
 
       const data = await response.json();

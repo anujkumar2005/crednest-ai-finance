@@ -7,7 +7,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.admin-stats]
-verify_jwt = false
+verify_jwt = true
 
 [functions.live-investment-rates]
 verify_jwt = false

@@ -1,172 +1,118 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Lock, Eye, EyeOff, ShieldAlert, Code2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Lock, ShieldAlert, Code2, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DevProtectedRouteProps {
   children: React.ReactNode;
 }
 
-// Developer password
-const DEV_PASSWORD = "Anuj@2005";
-
 export function DevProtectedRoute({ children }: DevProtectedRouteProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const { toast } = useToast();
 
   useEffect(() => {
-    // Check if dev session exists (expires in 1 hour)
-    const devSession = sessionStorage.getItem("dev_session");
-    if (devSession) {
-      try {
-        const { expiry } = JSON.parse(devSession);
-        if (Date.now() < expiry) {
-          setIsAuthenticated(true);
-        } else {
-          sessionStorage.removeItem("dev_session");
-        }
-      } catch {
-        sessionStorage.removeItem("dev_session");
+    const checkAdminRole = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        setIsChecking(false);
+        return;
       }
-    }
-    setIsChecking(false);
-  }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (attempts >= 5) {
-      toast({
-        title: "Too many attempts",
-        description: "Please wait before trying again",
-        variant: "destructive",
-      });
-      return;
-    }
+      try {
+        // Check if user has admin role
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
 
-    setIsLoading(true);
-    
-    // Add artificial delay to prevent brute force
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    
-    if (password === DEV_PASSWORD) {
-      setIsAuthenticated(true);
-      // Session expires in 1 hour
-      sessionStorage.setItem(
-        "dev_session",
-        JSON.stringify({ expiry: Date.now() + 60 * 60 * 1000 })
-      );
-      toast({
-        title: "Developer access granted",
-        description: "Welcome to the developer dashboard",
-      });
-    } else {
-      setAttempts((prev) => prev + 1);
-      toast({
-        title: "Access denied",
-        description: `Invalid password. ${5 - attempts - 1} attempts remaining.`,
-        variant: "destructive",
-      });
-    }
-    
-    setPassword("");
-    setIsLoading(false);
-  };
+        if (error) {
+          console.error("Error checking admin role:", error);
+          setIsAdmin(false);
+        } else {
+          setIsAdmin(!!data);
+        }
+      } catch (err) {
+        console.error("Failed to check admin role:", err);
+        setIsAdmin(false);
+      } finally {
+        setIsChecking(false);
+      }
+    };
 
-  if (isChecking) {
+    if (!authLoading) {
+      checkAdminRole();
+    }
+  }, [user, authLoading]);
+
+  if (authLoading || isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse">
-          <Lock className="h-8 w-8 text-muted-foreground" />
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span className="text-muted-foreground">Verifying access...</span>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-chart-1/5" />
         
-        <Card className="w-full max-w-md glass-card relative z-10">
+        <Card className="w-full max-w-md relative z-10">
           <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Code2 className="h-8 w-8 text-primary" />
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center">
+              <ShieldAlert className="h-8 w-8 text-destructive" />
             </div>
             <div>
-              <CardTitle className="text-2xl">Developer Access</CardTitle>
+              <CardTitle className="text-2xl">Authentication Required</CardTitle>
               <CardDescription className="mt-2">
-                This area is restricted to authorized developers only
+                You must be logged in to access this area
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                  Developer Password
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter developer password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={isLoading || attempts >= 5}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              {attempts >= 5 && (
-                <p className="text-sm text-destructive">
-                  Too many failed attempts. Please refresh and try again.
-                </p>
-              )}
-              
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isLoading || attempts >= 5}
-              >
-                {isLoading ? (
-                  <>
-                    <Lock className="h-4 w-4 mr-2 animate-pulse" />
-                    Verifying...
-                  </>
-                ) : (
-                  <>
-                    <Lock className="h-4 w-4 mr-2" />
-                    Access Developer Dashboard
-                  </>
-                )}
-              </Button>
-            </form>
-            
-            <p className="text-xs text-muted-foreground text-center mt-6">
-              Unauthorized access attempts are logged
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground">
+              Please sign in with an account that has admin privileges.
             </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-chart-1/5" />
+        
+        <Card className="w-full max-w-md relative z-10">
+          <CardHeader className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center">
+              <Lock className="h-8 w-8 text-destructive" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl">Access Denied</CardTitle>
+              <CardDescription className="mt-2">
+                This area is restricted to administrators only
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Your account does not have admin privileges. Contact an administrator if you believe this is an error.
+            </p>
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-xs text-muted-foreground">
+                Logged in as: <span className="font-medium text-foreground">{user.email}</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
