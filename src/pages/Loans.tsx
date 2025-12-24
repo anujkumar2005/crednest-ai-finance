@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Building2,
   Search,
@@ -14,118 +15,33 @@ import {
   Percent,
   Clock,
   CheckCircle,
-  ArrowRight,
+  Loader2,
 } from "lucide-react";
 
 interface Bank {
   id: string;
   name: string;
-  logo: string;
-  personalLoanRate: number;
-  homeLoanRate: number;
-  carLoanRate: number;
-  educationLoanRate: number;
-  processingFee: number;
-  minCibilScore: number;
-  maxLoanAmount: number;
-  maxTenure: number;
-  features: string[];
-  rating: number;
-  website: string;
-  customerCare: string;
+  logo_url: string | null;
+  personal_loan_rate: number | null;
+  home_loan_rate: number | null;
+  car_loan_rate: number | null;
+  education_loan_rate: number | null;
+  processing_fee: number | null;
+  min_cibil_score: number | null;
+  max_loan_amount: number | null;
+  max_tenure_years: number | null;
+  features: unknown;
+  rating: number | null;
+  website: string | null;
+  apply_url: string | null;
+  customer_care: string | null;
 }
-
-const banks: Bank[] = [
-  {
-    id: "1",
-    name: "State Bank of India",
-    logo: "🏦",
-    personalLoanRate: 10.5,
-    homeLoanRate: 8.5,
-    carLoanRate: 8.75,
-    educationLoanRate: 8.15,
-    processingFee: 1.0,
-    minCibilScore: 700,
-    maxLoanAmount: 5000000,
-    maxTenure: 30,
-    features: ["No prepayment charges", "Quick approval", "Doorstep service"],
-    rating: 4.5,
-    website: "https://www.onlinesbi.sbi/",
-    customerCare: "1800-11-2211",
-  },
-  {
-    id: "2",
-    name: "HDFC Bank",
-    logo: "🏛️",
-    personalLoanRate: 10.75,
-    homeLoanRate: 8.35,
-    carLoanRate: 8.5,
-    educationLoanRate: 9.0,
-    processingFee: 0.5,
-    minCibilScore: 750,
-    maxLoanAmount: 10000000,
-    maxTenure: 30,
-    features: ["Instant approval", "Flexible tenure", "Top-up facility"],
-    rating: 4.7,
-    website: "https://www.hdfcbank.com/personal/borrow/popular-loans/personal-loan",
-    customerCare: "1800-22-4060",
-  },
-  {
-    id: "3",
-    name: "ICICI Bank",
-    logo: "🔶",
-    personalLoanRate: 10.5,
-    homeLoanRate: 8.4,
-    carLoanRate: 8.65,
-    educationLoanRate: 8.5,
-    processingFee: 0.75,
-    minCibilScore: 720,
-    maxLoanAmount: 7500000,
-    maxTenure: 25,
-    features: ["Digital processing", "Minimal documentation", "EMI holiday"],
-    rating: 4.6,
-    website: "https://www.icicibank.com/personal-banking/loans/personal-loan",
-    customerCare: "1800-102-4242",
-  },
-  {
-    id: "4",
-    name: "Axis Bank",
-    logo: "🔷",
-    personalLoanRate: 10.49,
-    homeLoanRate: 8.55,
-    carLoanRate: 8.8,
-    educationLoanRate: 9.5,
-    processingFee: 1.0,
-    minCibilScore: 700,
-    maxLoanAmount: 5000000,
-    maxTenure: 25,
-    features: ["Express approval", "Part prepayment", "Balance transfer"],
-    rating: 4.4,
-    website: "https://www.axisbank.com/retail/loans/personal-loan",
-    customerCare: "1800-419-5555",
-  },
-  {
-    id: "5",
-    name: "Kotak Mahindra Bank",
-    logo: "🔴",
-    personalLoanRate: 10.99,
-    homeLoanRate: 8.7,
-    carLoanRate: 9.0,
-    educationLoanRate: 9.25,
-    processingFee: 0.5,
-    minCibilScore: 700,
-    maxLoanAmount: 4000000,
-    maxTenure: 20,
-    features: ["Zero foreclosure", "Online tracking", "Flexi loan option"],
-    rating: 4.3,
-    website: "https://www.kotak.com/en/personal-banking/loans/personal-loan.html",
-    customerCare: "1800-266-0811",
-  },
-];
 
 const loanTypes = ["All", "Personal", "Home", "Car", "Education"];
 
 export default function Loans() {
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLoanType, setSelectedLoanType] = useState("All");
   const [emiCalc, setEmiCalc] = useState({
@@ -133,6 +49,26 @@ export default function Loans() {
     rate: "10.5",
     tenure: "60",
   });
+
+  useEffect(() => {
+    fetchBanks();
+  }, []);
+
+  const fetchBanks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("banks")
+        .select("*")
+        .order("rating", { ascending: false });
+
+      if (error) throw error;
+      setBanks(data || []);
+    } catch (error) {
+      console.error("Error fetching banks:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const calculateEMI = () => {
     const P = parseFloat(emiCalc.amount);
@@ -148,18 +84,18 @@ export default function Loans() {
   const totalAmount = emi * parseFloat(emiCalc.tenure);
   const totalInterest = totalAmount - parseFloat(emiCalc.amount);
 
-  const getRateForType = (bank: Bank) => {
+  const getRateForType = (bank: Bank): number => {
     switch (selectedLoanType) {
       case "Personal":
-        return bank.personalLoanRate;
+        return bank.personal_loan_rate || 0;
       case "Home":
-        return bank.homeLoanRate;
+        return bank.home_loan_rate || 0;
       case "Car":
-        return bank.carLoanRate;
+        return bank.car_loan_rate || 0;
       case "Education":
-        return bank.educationLoanRate;
+        return bank.education_loan_rate || 0;
       default:
-        return bank.personalLoanRate;
+        return bank.personal_loan_rate || 0;
     }
   };
 
@@ -169,6 +105,28 @@ export default function Loans() {
     )
     .sort((a, b) => getRateForType(a) - getRateForType(b));
 
+  const parseFeatures = (features: unknown): string[] => {
+    if (Array.isArray(features)) return features;
+    if (typeof features === "string") {
+      try {
+        return JSON.parse(features);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -176,7 +134,7 @@ export default function Loans() {
         <div>
           <h1 className="text-3xl font-bold">Loan Comparison</h1>
           <p className="text-muted-foreground mt-1">
-            Compare interest rates and find the best loan offers
+            Compare interest rates from {banks.length}+ banks and find the best loan offers
           </p>
         </div>
 
@@ -281,7 +239,7 @@ export default function Loans() {
                   {/* Bank Info */}
                   <div className="flex items-center gap-4 flex-1">
                     <div className="w-14 h-14 rounded-xl bg-secondary flex items-center justify-center text-2xl">
-                      {bank.logo}
+                      <Building2 className="h-6 w-6 text-primary" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -317,33 +275,35 @@ export default function Loans() {
                         <Clock className="h-4 w-4" />
                         <span className="text-xs">Max Tenure</span>
                       </div>
-                      <p className="text-xl font-bold">{bank.maxTenure} yrs</p>
+                      <p className="text-xl font-bold">{bank.max_tenure_years} yrs</p>
                     </div>
                     <div className="text-center">
                       <div className="flex items-center gap-1 text-muted-foreground">
                         <Building2 className="h-4 w-4" />
                         <span className="text-xs">Processing</span>
                       </div>
-                      <p className="text-xl font-bold">{bank.processingFee}%</p>
+                      <p className="text-xl font-bold">{bank.processing_fee}%</p>
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="flex flex-col sm:flex-row gap-2 lg:ml-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1"
-                      onClick={() => window.open(`tel:${bank.customerCare}`)}
-                    >
-                      <Phone className="h-4 w-4" />
-                      Call
-                    </Button>
+                    {bank.customer_care && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => window.open(`tel:${bank.customer_care}`)}
+                      >
+                        <Phone className="h-4 w-4" />
+                        Call
+                      </Button>
+                    )}
                     <Button
                       variant="gold"
                       size="sm"
                       className="gap-1"
-                      onClick={() => window.open(bank.website, "_blank")}
+                      onClick={() => window.open(bank.apply_url || bank.website || "#", "_blank")}
                     >
                       Apply Now
                       <ExternalLink className="h-4 w-4" />
@@ -354,7 +314,7 @@ export default function Loans() {
                 {/* Features */}
                 <div className="mt-4 pt-4 border-t border-border/50">
                   <div className="flex flex-wrap gap-2">
-                    {bank.features.map((feature) => (
+                    {parseFeatures(bank.features).slice(0, 4).map((feature) => (
                       <span
                         key={feature}
                         className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary text-sm"
@@ -364,7 +324,7 @@ export default function Loans() {
                       </span>
                     ))}
                     <span className="text-sm text-muted-foreground">
-                      Min CIBIL: {bank.minCibilScore}
+                      Min CIBIL: {bank.min_cibil_score}
                     </span>
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   Send,
   Sparkles,
@@ -11,6 +12,7 @@ import {
   Lightbulb,
   Plus,
   Trash2,
+  Loader2,
 } from "lucide-react";
 
 interface Message {
@@ -45,6 +47,8 @@ const quickActions = [
   },
 ];
 
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+
 export default function Chat() {
   const [sessions, setSessions] = useState<ChatSession[]>([
     {
@@ -58,6 +62,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -70,7 +75,7 @@ export default function Chat() {
   }, [activeSession?.messages]);
 
   const handleSend = async (message: string) => {
-    if (!message.trim() || !activeSession) return;
+    if (!message.trim() || !activeSession || isTyping) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -94,117 +99,130 @@ export default function Chat() {
     setInput("");
     setIsTyping(true);
 
-    // Simulate AI response - replace with actual Lovable AI integration
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: getSimulatedResponse(message),
-        timestamp: new Date(),
-      };
+    // Build messages for API
+    const apiMessages = [
+      ...activeSession.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+      { role: "user" as const, content: message },
+    ];
 
+    let assistantContent = "";
+
+    try {
+      const resp = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ messages: apiMessages }),
+      });
+
+      if (!resp.ok) {
+        if (resp.status === 429) {
+          toast({
+            title: "Rate limited",
+            description: "Please wait a moment and try again.",
+            variant: "destructive",
+          });
+        } else if (resp.status === 402) {
+          toast({
+            title: "Credits required",
+            description: "Please add credits to continue using AI features.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error("Failed to get AI response");
+        }
+        setIsTyping(false);
+        return;
+      }
+
+      const reader = resp.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+
+      const decoder = new TextDecoder();
+      let textBuffer = "";
+
+      // Create assistant message placeholder
+      const assistantMessageId = (Date.now() + 1).toString();
       setSessions((prev) =>
         prev.map((s) =>
           s.id === activeSessionId
-            ? { ...s, messages: [...s.messages, aiResponse] }
+            ? {
+                ...s,
+                messages: [
+                  ...s.messages,
+                  {
+                    id: assistantMessageId,
+                    role: "assistant" as const,
+                    content: "",
+                    timestamp: new Date(),
+                  },
+                ],
+              }
             : s
         )
       );
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) {
+              assistantContent += content;
+              // Update assistant message
+              setSessions((prev) =>
+                prev.map((s) =>
+                  s.id === activeSessionId
+                    ? {
+                        ...s,
+                        messages: s.messages.map((m) =>
+                          m.id === assistantMessageId
+                            ? { ...m, content: assistantContent }
+                            : m
+                        ),
+                      }
+                    : s
+                )
+              );
+            }
+          } catch {
+            // Incomplete JSON, put back and wait
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to get AI response. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsTyping(false);
-    }, 1500);
-  };
-
-  const getSimulatedResponse = (query: string): string => {
-    const lowerQuery = query.toLowerCase();
-    
-    if (lowerQuery.includes("emi") || lowerQuery.includes("loan")) {
-      return `## EMI Calculation Result 📊
-
-Based on your query, here's the EMI calculation:
-
-| Parameter | Value |
-|-----------|-------|
-| Principal Amount | ₹50,00,000 |
-| Interest Rate | 8.5% p.a. |
-| Loan Tenure | 20 years (240 months) |
-| **Monthly EMI** | **₹43,391** |
-
-### Breakdown:
-- **Total Interest Payable**: ₹54,13,840
-- **Total Amount Payable**: ₹1,04,13,840
-
-### Tips to Reduce Your EMI:
-1. Make a larger down payment to reduce principal
-2. Compare rates across banks - even 0.5% difference can save lakhs
-3. Consider shorter tenure if affordable
-
-Would you like me to compare loan offers from different banks?`;
     }
-    
-    if (lowerQuery.includes("document") || lowerQuery.includes("paper")) {
-      return `## Required Documents for Personal Loan 📄
-
-Here's a comprehensive checklist:
-
-### Identity Proof (Any one):
-- ✅ Aadhaar Card
-- ✅ PAN Card
-- ✅ Passport
-- ✅ Voter ID
-
-### Address Proof (Any one):
-- ✅ Utility Bills (within 3 months)
-- ✅ Rent Agreement
-- ✅ Bank Statement
-
-### Income Proof:
-- ✅ Last 3 months salary slips
-- ✅ Last 6 months bank statements
-- ✅ Form 16 / ITR for last 2 years
-
-### Employment Proof:
-- ✅ Employment letter / Offer letter
-- ✅ Employee ID card
-
-Shall I help you prepare for a specific bank's requirements?`;
-    }
-    
-    if (lowerQuery.includes("save") || lowerQuery.includes("saving") || lowerQuery.includes("budget")) {
-      return `## Smart Savings Tips 💰
-
-Here are 5 practical ways to save on a ₹60,000 salary:
-
-### 1. Follow the 50-30-20 Rule
-- **50%** (₹30,000) → Needs (rent, groceries, utilities)
-- **30%** (₹18,000) → Wants (entertainment, dining)
-- **20%** (₹12,000) → Savings & Investments
-
-### 2. Automate Your Savings
-Set up auto-transfer to savings account on salary day.
-
-### 3. Track Every Expense
-Use apps like CredNest AI to categorize spending.
-
-### 4. Cut Subscription Waste
-Review and cancel unused subscriptions.
-
-### 5. Meal Planning
-Cooking at home can save ₹5,000-8,000/month.
-
-**Potential Monthly Savings: ₹15,000-20,000**
-
-Would you like me to create a personalized budget plan?`;
-    }
-
-    return `Thank you for your question! As your AI financial advisor, I'm here to help you with:
-
-- 📊 **EMI Calculations** - For any loan type
-- 📋 **Document Checklists** - Bank-specific requirements
-- 💡 **Financial Tips** - Personalized savings strategies
-- 🏦 **Loan Comparison** - Find the best rates
-- 📈 **Investment Guidance** - Mutual fund analysis
-
-How can I assist you today? Feel free to ask about loans, budgeting, investments, or any financial topic!`;
   };
 
   const createNewSession = () => {
@@ -278,7 +296,7 @@ How can I assist you today? Feel free to ask about loans, budgeting, investments
               <div>
                 <CardTitle className="text-lg">CredNest AI Assistant</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Your personal financial advisor
+                  Your personal financial advisor powered by AI
                 </p>
               </div>
             </div>
@@ -336,7 +354,8 @@ How can I assist you today? Feel free to ask about loans, budgeting, investments
                             .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
                             .replace(/## (.*?)(<br>|$)/g, "<h3>$1</h3>")
                             .replace(/### (.*?)(<br>|$)/g, "<h4>$1</h4>")
-                            .replace(/- (.*?)(<br>|$)/g, "• $1<br>"),
+                            .replace(/- (.*?)(<br>|$)/g, "• $1<br>")
+                            .replace(/\|(.*?)\|/g, "<span>$1</span>"),
                         }}
                       />
                     </div>
@@ -345,9 +364,8 @@ How can I assist you today? Feel free to ask about loans, budgeting, investments
                 {isTyping && (
                   <div className="flex justify-start">
                     <div className="chat-bubble-ai flex items-center gap-2">
-                      <div className="typing-dot" />
-                      <div className="typing-dot" />
-                      <div className="typing-dot" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Thinking...</span>
                     </div>
                   </div>
                 )}
@@ -370,6 +388,7 @@ How can I assist you today? Feel free to ask about loans, budgeting, investments
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about loans, EMI, investments..."
                 className="flex-1"
+                disabled={isTyping}
               />
               <Button type="submit" variant="gold" disabled={!input.trim() || isTyping}>
                 <Send className="h-4 w-4" />
