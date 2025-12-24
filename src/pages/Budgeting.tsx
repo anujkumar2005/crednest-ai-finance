@@ -21,8 +21,10 @@ import {
   TrendingUp,
   TrendingDown,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 interface BudgetCategory {
@@ -255,6 +257,31 @@ export default function Budgeting() {
     }
   };
 
+  const handleDeleteBudget = async (budgetId: string, categoryName: string) => {
+    try {
+      const { error } = await supabase
+        .from("budgets")
+        .delete()
+        .eq("id", budgetId);
+
+      if (error) throw error;
+
+      setCategories((prev) => prev.filter((cat) => cat.id !== budgetId));
+
+      toast({
+        title: "Budget Deleted",
+        description: `${categoryName} budget has been removed`,
+      });
+    } catch (error) {
+      console.error("Error deleting budget:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete budget",
+        variant: "destructive",
+      });
+    }
+  };
+
   const totalPlanned = categories.reduce((acc, cat) => acc + cat.planned, 0);
   const totalSpent = categories.reduce((acc, cat) => acc + cat.spent, 0);
   const remaining = totalPlanned - totalSpent;
@@ -478,17 +505,43 @@ export default function Budgeting() {
                             </p>
                           </div>
                         </div>
-                        <span
-                          className={`text-sm font-medium px-2 py-1 rounded-full ${
-                            isOverBudget
-                              ? "bg-destructive/20 text-destructive"
-                              : percentage >= 75
-                              ? "bg-warning/20 text-warning"
-                              : "bg-success/20 text-success"
-                          }`}
-                        >
-                          {percentage.toFixed(0)}%
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-sm font-medium px-2 py-1 rounded-full ${
+                              isOverBudget
+                                ? "bg-destructive/20 text-destructive"
+                                : percentage >= 75
+                                ? "bg-warning/20 text-warning"
+                                : "bg-success/20 text-success"
+                            }`}
+                          >
+                            {percentage.toFixed(0)}%
+                          </span>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Budget</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete the "{category.name}" budget? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteBudget(category.id, category.name)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                       <ProgressBar
                         value={category.spent}
