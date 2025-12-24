@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isJwtExpiredError, retryOnJwtExpired } from "@/lib/supabaseRetry";
@@ -23,6 +24,8 @@ import {
   BadgeCheck,
   Users,
   IndianRupee,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import {
   PieChart,
@@ -55,6 +58,18 @@ interface InsuranceCompany {
   rating: number | null;
 }
 
+interface LiveInsuranceRate {
+  name: string;
+  claim_settlement_ratio: number;
+  life_premium_min: number;
+  health_premium_min: number;
+  vehicle_premium_min: number;
+  coverage_min_lakhs: number;
+  coverage_max_cr: number;
+  rating: number;
+  types: string[];
+}
+
 const insuranceTypes = [
   { value: "All", icon: Shield, label: "All", color: "text-primary" },
   { value: "Life", icon: Heart, label: "Life", color: "text-destructive" },
@@ -65,6 +80,9 @@ const insuranceTypes = [
 
 export default function Insurance() {
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
+  const [liveCompanies, setLiveCompanies] = useState<LiveInsuranceRate[]>([]);
+  const [liveUpdated, setLiveUpdated] = useState<string | null>(null);
+  const [loadingLive, setLoadingLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,6 +97,7 @@ export default function Insurance() {
 
   useEffect(() => {
     fetchCompanies();
+    fetchLiveCompanies();
   }, []);
 
   const fetchCompanies = async () => {
@@ -112,6 +131,40 @@ export default function Insurance() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLiveCompanies = async () => {
+    setLoadingLive(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-insurance-rates`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch live insurance rates");
+      }
+
+      const data = await response.json();
+      
+      if (data.companies && data.companies.length > 0) {
+        setLiveCompanies(data.companies);
+        setLiveUpdated(data.lastUpdated);
+        toast({
+          title: "Live Rates Updated",
+          description: "Insurance data has been refreshed",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching live insurance rates:", error);
+    } finally {
+      setLoadingLive(false);
     }
   };
 
@@ -377,6 +430,104 @@ export default function Insurance() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Live Insurance Rates Section */}
+        {liveCompanies.length > 0 && (
+          <Card className="border-success/30">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-success" />
+                  Live Insurance Data - Top Insurers
+                  <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
+                    <Zap className="h-3 w-3" />
+                    Live
+                  </Badge>
+                </CardTitle>
+                {liveUpdated && (
+                  <p className="text-xs text-muted-foreground">
+                    Last updated: {new Date(liveUpdated).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchLiveCompanies}
+                disabled={loadingLive}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingLive ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {liveCompanies.slice(0, 6).map((company, index) => (
+                  <Card key={index} className="bg-secondary/30 border-border/50">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-sm">{company.name}</h4>
+                          <div className="flex items-center gap-1 mt-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-3 w-3 ${
+                                  i < company.rating
+                                    ? "text-primary fill-primary"
+                                    : "text-muted-foreground"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-bold text-success">
+                            {company.claim_settlement_ratio}%
+                          </span>
+                          <p className="text-xs text-muted-foreground">CSR</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {company.types.map((type) => {
+                          const typeInfo = insuranceTypes.find(t => t.value === type);
+                          const Icon = typeInfo?.icon || Shield;
+                          return (
+                            <span
+                              key={type}
+                              className="px-2 py-0.5 rounded-full bg-secondary text-xs flex items-center gap-1"
+                            >
+                              <Icon className={`h-3 w-3 ${typeInfo?.color}`} />
+                              {type}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {company.life_premium_min > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Life:</span>
+                            <span className="ml-1 font-medium">₹{company.life_premium_min}/mo</span>
+                          </div>
+                        )}
+                        {company.health_premium_min > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Health:</span>
+                            <span className="ml-1 font-medium">₹{company.health_premium_min}/mo</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Coverage: ₹{company.coverage_min_lakhs}L - ₹{company.coverage_max_cr}Cr
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Search */}
         <div className="relative">
