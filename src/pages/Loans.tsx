@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { Slider } from "@/components/ui/slider";
 import {
   Building2,
   Search,
@@ -16,7 +17,18 @@ import {
   Clock,
   CheckCircle,
   Loader2,
+  IndianRupee,
+  TrendingDown,
+  BadgeCheck,
+  ArrowRight,
 } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 
 interface Bank {
   id: string;
@@ -26,6 +38,7 @@ interface Bank {
   home_loan_rate: number | null;
   car_loan_rate: number | null;
   education_loan_rate: number | null;
+  business_loan_rate: number | null;
   processing_fee: number | null;
   min_cibil_score: number | null;
   max_loan_amount: number | null;
@@ -37,7 +50,14 @@ interface Bank {
   customer_care: string | null;
 }
 
-const loanTypes = ["All", "Personal", "Home", "Car", "Education"];
+const loanTypes = [
+  { value: "All", label: "All Loans" },
+  { value: "Personal", label: "Personal" },
+  { value: "Home", label: "Home" },
+  { value: "Car", label: "Car" },
+  { value: "Education", label: "Education" },
+  { value: "Business", label: "Business" },
+];
 
 export default function Loans() {
   const [banks, setBanks] = useState<Bank[]>([]);
@@ -45,9 +65,9 @@ export default function Loans() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLoanType, setSelectedLoanType] = useState("All");
   const [emiCalc, setEmiCalc] = useState({
-    amount: "1000000",
-    rate: "10.5",
-    tenure: "60",
+    amount: 1000000,
+    rate: 10.5,
+    tenure: 60,
   });
 
   useEffect(() => {
@@ -71,9 +91,9 @@ export default function Loans() {
   };
 
   const calculateEMI = () => {
-    const P = parseFloat(emiCalc.amount);
-    const r = parseFloat(emiCalc.rate) / 12 / 100;
-    const n = parseFloat(emiCalc.tenure);
+    const P = emiCalc.amount;
+    const r = emiCalc.rate / 12 / 100;
+    const n = emiCalc.tenure;
 
     if (r === 0) return P / n;
     const emi = (P * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
@@ -81,8 +101,13 @@ export default function Loans() {
   };
 
   const emi = calculateEMI();
-  const totalAmount = emi * parseFloat(emiCalc.tenure);
-  const totalInterest = totalAmount - parseFloat(emiCalc.amount);
+  const totalAmount = emi * emiCalc.tenure;
+  const totalInterest = totalAmount - emiCalc.amount;
+
+  const pieData = [
+    { name: "Principal", value: emiCalc.amount, color: "hsl(var(--primary))" },
+    { name: "Interest", value: totalInterest, color: "hsl(var(--destructive))" },
+  ];
 
   const getRateForType = (bank: Bank): number => {
     switch (selectedLoanType) {
@@ -94,6 +119,8 @@ export default function Loans() {
         return bank.car_loan_rate || 0;
       case "Education":
         return bank.education_loan_rate || 0;
+      case "Business":
+        return bank.business_loan_rate || 0;
       default:
         return bank.personal_loan_rate || 0;
     }
@@ -103,6 +130,7 @@ export default function Loans() {
     .filter((bank) =>
       bank.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
+    .filter((bank) => getRateForType(bank) > 0)
     .sort((a, b) => getRateForType(a) - getRateForType(b));
 
   const parseFeatures = (features: unknown): string[] => {
@@ -132,73 +160,153 @@ export default function Loans() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">Loan Comparison</h1>
+          <h1 className="text-3xl font-bold">Loan Comparison & EMI Calculator</h1>
           <p className="text-muted-foreground mt-1">
-            Compare interest rates from {banks.length}+ banks and find the best loan offers
+            Compare interest rates from {banks.length}+ banks and calculate your EMI instantly
           </p>
         </div>
 
         {/* EMI Calculator */}
-        <Card className="gold-glow">
-          <CardHeader>
+        <Card className="gold-glow overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-transparent">
             <CardTitle className="flex items-center gap-2">
               <Calculator className="h-5 w-5 text-primary" />
-              EMI Calculator
+              Smart EMI Calculator
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Loan Amount (₹)</label>
-                <Input
-                  type="number"
-                  value={emiCalc.amount}
-                  onChange={(e) =>
-                    setEmiCalc({ ...emiCalc, amount: e.target.value })
-                  }
-                />
+          <CardContent className="pt-6">
+            <div className="grid lg:grid-cols-3 gap-8">
+              {/* Sliders */}
+              <div className="lg:col-span-2 space-y-8">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4 text-primary" />
+                      Loan Amount
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-bold text-primary">
+                        ₹{emiCalc.amount.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <Slider
+                    value={[emiCalc.amount]}
+                    onValueChange={(v) => setEmiCalc({ ...emiCalc, amount: v[0] })}
+                    min={100000}
+                    max={10000000}
+                    step={50000}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>₹1 Lakh</span>
+                    <span>₹1 Crore</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Percent className="h-4 w-4 text-primary" />
+                      Interest Rate (% p.a.)
+                    </label>
+                    <span className="text-2xl font-bold text-primary">{emiCalc.rate}%</span>
+                  </div>
+                  <Slider
+                    value={[emiCalc.rate]}
+                    onValueChange={(v) => setEmiCalc({ ...emiCalc, rate: v[0] })}
+                    min={5}
+                    max={24}
+                    step={0.25}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>5%</span>
+                    <span>24%</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary" />
+                      Loan Tenure
+                    </label>
+                    <span className="text-2xl font-bold text-primary">
+                      {Math.floor(emiCalc.tenure / 12)} yrs {emiCalc.tenure % 12} mo
+                    </span>
+                  </div>
+                  <Slider
+                    value={[emiCalc.tenure]}
+                    onValueChange={(v) => setEmiCalc({ ...emiCalc, tenure: v[0] })}
+                    min={12}
+                    max={360}
+                    step={12}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>1 Year</span>
+                    <span>30 Years</span>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Interest Rate (%)</label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={emiCalc.rate}
-                  onChange={(e) =>
-                    setEmiCalc({ ...emiCalc, rate: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tenure (Months)</label>
-                <Input
-                  type="number"
-                  value={emiCalc.tenure}
-                  onChange={(e) =>
-                    setEmiCalc({ ...emiCalc, tenure: e.target.value })
-                  }
-                />
-              </div>
-              <div className="flex flex-col justify-end">
-                <div className="glass-card p-4 text-center">
+
+              {/* Results */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="h-[180px] w-[180px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value: number) => [`₹${value.toLocaleString()}`, '']}
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="text-center mt-2">
                   <p className="text-sm text-muted-foreground">Monthly EMI</p>
-                  <p className="text-2xl font-bold text-primary">
-                    ₹{emi.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                  <p className="text-3xl font-bold text-primary">
+                    ₹{Math.round(emi).toLocaleString()}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-4 mt-4">
-              <div className="p-4 rounded-lg bg-secondary/50">
-                <p className="text-sm text-muted-foreground">Total Interest</p>
-                <p className="text-lg font-semibold text-destructive">
-                  ₹{totalInterest.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+
+            {/* Summary Stats */}
+            <div className="grid sm:grid-cols-3 gap-4 mt-8 pt-6 border-t border-border/50">
+              <div className="text-center p-4 rounded-xl bg-primary/5">
+                <p className="text-sm text-muted-foreground mb-1">Principal Amount</p>
+                <p className="text-xl font-bold text-primary">
+                  ₹{emiCalc.amount.toLocaleString()}
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-secondary/50">
-                <p className="text-sm text-muted-foreground">Total Amount</p>
-                <p className="text-lg font-semibold">
-                  ₹{totalAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              <div className="text-center p-4 rounded-xl bg-destructive/5">
+                <p className="text-sm text-muted-foreground mb-1">Total Interest</p>
+                <p className="text-xl font-bold text-destructive">
+                  ₹{Math.round(totalInterest).toLocaleString()}
+                </p>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-success/5">
+                <p className="text-sm text-muted-foreground mb-1">Total Amount</p>
+                <p className="text-xl font-bold">
+                  ₹{Math.round(totalAmount).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -217,10 +325,10 @@ export default function Loans() {
             />
           </div>
           <Tabs value={selectedLoanType} onValueChange={setSelectedLoanType}>
-            <TabsList className="bg-secondary">
+            <TabsList className="bg-secondary h-auto flex-wrap">
               {loanTypes.map((type) => (
-                <TabsTrigger key={type} value={type}>
-                  {type}
+                <TabsTrigger key={type.value} value={type.value} className="text-xs sm:text-sm">
+                  {type.label}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -229,108 +337,146 @@ export default function Loans() {
 
         {/* Banks List */}
         <div className="space-y-4">
-          {filteredBanks.map((bank, index) => (
-            <Card
-              key={bank.id}
-              className="hover:border-primary/30 transition-all duration-300"
-            >
-              <CardContent className="p-6">
-                <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                  {/* Bank Info */}
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-14 h-14 rounded-xl bg-secondary flex items-center justify-center text-2xl">
-                      <Building2 className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold">{bank.name}</h3>
-                        {index === 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-success/20 text-success text-xs font-medium">
-                            Best Rate
+          {filteredBanks.length === 0 ? (
+            <Card className="p-12 text-center">
+              <p className="text-muted-foreground">No banks found for this loan type</p>
+            </Card>
+          ) : (
+            filteredBanks.map((bank, index) => (
+              <Card
+                key={bank.id}
+                className={`hover:border-primary/30 transition-all duration-300 ${
+                  index === 0 ? "border-success/50 bg-success/5" : ""
+                }`}
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+                    {/* Bank Info */}
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl">
+                        <Building2 className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-semibold">{bank.name}</h3>
+                          {index === 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-success/20 text-success text-xs font-medium flex items-center gap-1">
+                              <BadgeCheck className="h-3 w-3" />
+                              Best Rate
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-3 w-3 ${
+                                  i < Math.floor(bank.rating || 0)
+                                    ? "text-primary fill-primary"
+                                    : "text-muted-foreground"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {bank.rating} Rating
                           </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Star className="h-4 w-4 text-primary fill-primary" />
-                        <span className="text-sm text-muted-foreground">
-                          {bank.rating} Rating
-                        </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Rates */}
-                  <div className="flex flex-wrap gap-4 lg:gap-6">
-                    <div className="text-center">
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Percent className="h-4 w-4" />
-                        <span className="text-xs">Interest Rate</span>
+                    {/* Rates */}
+                    <div className="flex flex-wrap gap-6 lg:gap-8">
+                      <div className="text-center">
+                        <div className="flex items-center gap-1 text-muted-foreground mb-1">
+                          <Percent className="h-3 w-3" />
+                          <span className="text-xs">Interest Rate</span>
+                        </div>
+                        <p className="text-2xl font-bold text-primary">
+                          {getRateForType(bank)}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">per annum</p>
                       </div>
-                      <p className="text-xl font-bold text-primary">
-                        {getRateForType(bank)}%
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        <span className="text-xs">Max Tenure</span>
+                      <div className="text-center">
+                        <div className="flex items-center gap-1 text-muted-foreground mb-1">
+                          <Clock className="h-3 w-3" />
+                          <span className="text-xs">Max Tenure</span>
+                        </div>
+                        <p className="text-2xl font-bold">{bank.max_tenure_years}</p>
+                        <p className="text-xs text-muted-foreground">years</p>
                       </div>
-                      <p className="text-xl font-bold">{bank.max_tenure_years} yrs</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Building2 className="h-4 w-4" />
-                        <span className="text-xs">Processing</span>
+                      <div className="text-center">
+                        <div className="flex items-center gap-1 text-muted-foreground mb-1">
+                          <TrendingDown className="h-3 w-3" />
+                          <span className="text-xs">Processing</span>
+                        </div>
+                        <p className="text-2xl font-bold">{bank.processing_fee}%</p>
+                        <p className="text-xs text-muted-foreground">of loan</p>
                       </div>
-                      <p className="text-xl font-bold">{bank.processing_fee}%</p>
                     </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-col sm:flex-row gap-2 lg:ml-4">
-                    {bank.customer_care && (
+                    {/* Actions */}
+                    <div className="flex flex-col sm:flex-row gap-2 lg:ml-4">
+                      {bank.customer_care && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => window.open(`tel:${bank.customer_care}`)}
+                        >
+                          <Phone className="h-4 w-4" />
+                          Call
+                        </Button>
+                      )}
                       <Button
-                        variant="outline"
+                        variant="gold"
                         size="sm"
                         className="gap-1"
-                        onClick={() => window.open(`tel:${bank.customer_care}`)}
+                        onClick={() => {
+                          setEmiCalc({ ...emiCalc, rate: getRateForType(bank) });
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
                       >
-                        <Phone className="h-4 w-4" />
-                        Call
+                        Calculate EMI
+                        <Calculator className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button
-                      variant="gold"
-                      size="sm"
-                      className="gap-1"
-                      onClick={() => window.open(bank.apply_url || bank.website || "#", "_blank")}
-                    >
-                      Apply Now
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Features */}
-                <div className="mt-4 pt-4 border-t border-border/50">
-                  <div className="flex flex-wrap gap-2">
-                    {parseFeatures(bank.features).slice(0, 4).map((feature) => (
-                      <span
-                        key={feature}
-                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary text-sm"
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => window.open(bank.apply_url || bank.website || "#", "_blank")}
                       >
-                        <CheckCircle className="h-3 w-3 text-success" />
-                        {feature}
-                      </span>
-                    ))}
-                    <span className="text-sm text-muted-foreground">
-                      Min CIBIL: {bank.min_cibil_score}
-                    </span>
+                        Apply Now
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  {/* Features */}
+                  <div className="mt-4 pt-4 border-t border-border/50">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {parseFeatures(bank.features).slice(0, 4).map((feature) => (
+                        <span
+                          key={feature}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary text-xs"
+                        >
+                          <CheckCircle className="h-3 w-3 text-success" />
+                          {feature}
+                        </span>
+                      ))}
+                      <span className="text-xs text-muted-foreground ml-2">
+                        Min CIBIL: <span className="font-medium text-foreground">{bank.min_cibil_score}</span>
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Max Amount: <span className="font-medium text-foreground">₹{((bank.max_loan_amount || 0) / 10000000).toFixed(0)} Cr</span>
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </DashboardLayout>
