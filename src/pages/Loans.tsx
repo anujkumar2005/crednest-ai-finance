@@ -130,7 +130,10 @@ export default function Loans() {
     .filter((bank) =>
       bank.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
-    .filter((bank) => getRateForType(bank) > 0)
+    .filter((bank) => {
+      if (selectedLoanType === "All") return true;
+      return getRateForType(bank) > 0;
+    })
     .sort((a, b) => getRateForType(a) - getRateForType(b));
 
   const parseFeatures = (features: unknown): string[] => {
