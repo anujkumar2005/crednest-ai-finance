@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, EyeOff, Sparkles, ArrowRight, Shield, TrendingUp, Wallet } from "lucide-react";
+import { Eye, EyeOff, Sparkles, ArrowRight, Shield, TrendingUp, Wallet, Code2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import heroBg from "@/assets/hero-bg.jpg";
@@ -113,6 +113,15 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Developer Access - Fixed Corner Button */}
+      <Link
+        to="/developer"
+        className="fixed bottom-4 right-4 z-50 p-2 rounded-lg bg-muted/50 hover:bg-muted border border-border/50 text-muted-foreground hover:text-foreground transition-all opacity-50 hover:opacity-100"
+        title="Developer Access"
+      >
+        <Code2 className="h-4 w-4" />
+      </Link>
+
       {/* Background image */}
       <div 
         className="absolute inset-0 opacity-40"
@@ -340,13 +349,6 @@ export default function Landing() {
               </Link>
               <Link to="/terms" className="text-sm text-muted-foreground hover:text-foreground">
                 Terms of Service
-              </Link>
-              <Link 
-                to="/developer" 
-                className="text-sm text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-                title="Developer Access"
-              >
-                Dev
               </Link>
             </div>
           </div>
