@@ -13,12 +13,57 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
-    // Create admin client that bypasses RLS
+    // Get the authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Create client with user's JWT to verify identity
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    // Get the authenticated user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      console.error("Auth error:", userError);
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Authenticated user:", user.id);
+
+    // Create admin client to check role (bypasses RLS)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch all table counts
+    // Check if user has admin role
+    const { data: roleData, error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .single();
+
+    if (roleError || !roleData) {
+      console.error("Role check failed:", roleError);
+      return new Response(
+        JSON.stringify({ error: "Access denied. Admin role required." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Admin access granted for user:", user.id);
+
+    // Fetch all table counts (only accessible to admins)
     const tables = [
       "profiles",
       "expenses",
@@ -32,6 +77,7 @@ serve(async (req) => {
       "insurance_companies",
       "investment_funds",
       "financial_corpus",
+      "user_roles",
     ];
 
     const tableStats = [];
@@ -65,10 +111,10 @@ serve(async (req) => {
       supabaseAdmin.from("user_loans").select("*", { count: "exact", head: true }),
     ]);
 
-    // Fetch recent activity
+    // Fetch recent activity (sanitized - no PII)
     const { data: recentChats } = await supabaseAdmin
       .from("chat_messages")
-      .select("id, role, created_at, content")
+      .select("id, role, created_at")
       .order("created_at", { ascending: false })
       .limit(10);
 
@@ -84,7 +130,7 @@ serve(async (req) => {
       recentChats.forEach((chat) => {
         activity.push({
           type: "chat",
-          message: `${chat.role === "user" ? "User" : "AI"} message: "${chat.content?.substring(0, 50)}..."`,
+          message: `${chat.role === "user" ? "User" : "AI"} message received`,
           time: chat.created_at,
         });
       });
