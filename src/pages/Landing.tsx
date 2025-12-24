@@ -147,15 +147,24 @@ export default function Landing() {
               <span className="text-xl font-bold gradient-text">CredNest AI</span>
             </div>
             <div className="hidden md:flex items-center gap-6">
-              <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors">
+              <button 
+                onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 About
-              </Link>
-              <Link to="/features" className="text-muted-foreground hover:text-foreground transition-colors">
+              </button>
+              <button 
+                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 Features
-              </Link>
-              <Link to="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
+              </button>
+              <button 
+                onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 Contact
-              </Link>
+              </button>
             </div>
           </nav>
         </header>
@@ -181,7 +190,7 @@ export default function Landing() {
               </div>
 
               {/* Features Grid */}
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div id="features" className="grid sm:grid-cols-2 gap-4">
                 {features.map((feature) => (
                   <div
                     key={feature.title}
@@ -192,6 +201,24 @@ export default function Landing() {
                     <p className="text-sm text-muted-foreground">{feature.description}</p>
                   </div>
                 ))}
+              </div>
+
+              {/* About Section */}
+              <div id="about" className="pt-8 space-y-4">
+                <h2 className="text-2xl font-bold gradient-text">About CredNest AI</h2>
+                <p className="text-muted-foreground">
+                  CredNest AI is your intelligent financial companion, designed to simplify money management 
+                  and help you achieve your financial goals. Our platform combines cutting-edge AI technology 
+                  with comprehensive financial tools to provide personalized insights and recommendations.
+                </p>
+              </div>
+
+              {/* Contact Section */}
+              <div id="contact" className="pt-8 space-y-4">
+                <h2 className="text-2xl font-bold gradient-text">Contact Us</h2>
+                <p className="text-muted-foreground">
+                  Have questions? Reach out to us at <span className="text-primary">support@crednest.ai</span>
+                </p>
               </div>
             </div>
 
