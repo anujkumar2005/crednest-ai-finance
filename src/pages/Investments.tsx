@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isJwtExpiredError, retryOnJwtExpired } from "@/lib/supabaseRetry";
@@ -22,6 +23,8 @@ import {
   BarChart3,
   IndianRupee,
   Target,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import {
   AreaChart,
@@ -54,10 +57,26 @@ interface MutualFund {
   website: string | null;
 }
 
+interface LiveFundRate {
+  name: string;
+  fund_type: string;
+  amc: string;
+  nav: number;
+  returns_1yr: number;
+  returns_3yr: number;
+  returns_5yr: number;
+  expense_ratio: number;
+  risk_level: string;
+  rating: number;
+}
+
 const fundTypes = ["All", "Equity", "Debt", "Hybrid", "Index"];
 
 export default function Investments() {
   const [funds, setFunds] = useState<MutualFund[]>([]);
+  const [liveFunds, setLiveFunds] = useState<LiveFundRate[]>([]);
+  const [liveUpdated, setLiveUpdated] = useState<string | null>(null);
+  const [loadingLive, setLoadingLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,6 +90,7 @@ export default function Investments() {
 
   useEffect(() => {
     fetchFunds();
+    fetchLiveFunds();
   }, []);
 
   const fetchFunds = async () => {
@@ -104,6 +124,40 @@ export default function Investments() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLiveFunds = async () => {
+    setLoadingLive(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-investment-rates`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch live investment rates");
+      }
+
+      const data = await response.json();
+      
+      if (data.funds && data.funds.length > 0) {
+        setLiveFunds(data.funds);
+        setLiveUpdated(data.lastUpdated);
+        toast({
+          title: "Live Rates Updated",
+          description: "Investment fund data has been refreshed",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching live funds:", error);
+    } finally {
+      setLoadingLive(false);
     }
   };
 
@@ -401,6 +455,98 @@ export default function Investments() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Live Fund Rates Section */}
+        {liveFunds.length > 0 && (
+          <Card className="border-success/30">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-success" />
+                  Live Market Data - Top Performing Funds
+                  <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
+                    <Zap className="h-3 w-3" />
+                    Live
+                  </Badge>
+                </CardTitle>
+                {liveUpdated && (
+                  <p className="text-xs text-muted-foreground">
+                    Last updated: {new Date(liveUpdated).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchLiveFunds}
+                disabled={loadingLive}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingLive ? "animate-spin" : ""}`} />
+                {loadingLive ? "Fetching..." : "Refresh"}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border/50">
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fund Name</th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">Type</th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">NAV</th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">1Y Return</th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">3Y Return</th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">5Y Return</th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">Rating</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveFunds.map((fund, index) => (
+                      <tr
+                        key={`${fund.name}-${index}`}
+                        className="border-b border-border/30 hover:bg-secondary/30 transition-colors"
+                      >
+                        <td className="py-4 px-4">
+                          <div>
+                            <p className="font-medium">{fund.name}</p>
+                            <p className="text-xs text-muted-foreground">{fund.amc}</p>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getTypeColor(fund.fund_type)}`}>
+                            {fund.fund_type}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-center font-semibold">₹{fund.nav?.toFixed(2)}</td>
+                        <td className={`py-4 px-4 text-center font-semibold ${fund.returns_1yr >= 0 ? "text-success" : "text-destructive"}`}>
+                          {fund.returns_1yr >= 0 ? "+" : ""}{fund.returns_1yr}%
+                        </td>
+                        <td className={`py-4 px-4 text-center font-semibold ${fund.returns_3yr >= 0 ? "text-success" : "text-destructive"}`}>
+                          {fund.returns_3yr >= 0 ? "+" : ""}{fund.returns_3yr}%
+                        </td>
+                        <td className={`py-4 px-4 text-center font-semibold ${fund.returns_5yr >= 0 ? "text-success" : "text-destructive"}`}>
+                          {fund.returns_5yr >= 0 ? "+" : ""}{fund.returns_5yr}%
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <div className="flex items-center justify-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-3 w-3 ${
+                                  i < fund.rating ? "text-primary fill-primary" : "text-muted-foreground"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
