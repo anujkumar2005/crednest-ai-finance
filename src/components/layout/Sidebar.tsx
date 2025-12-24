@@ -15,6 +15,7 @@ import {
   Sparkles,
   HelpCircle,
   Info,
+  Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -33,6 +34,7 @@ const bottomItems = [
   { icon: User, label: "Profile", path: "/profile" },
   { icon: HelpCircle, label: "Help", path: "/help" },
   { icon: Info, label: "About", path: "/about" },
+  { icon: Code2, label: "Developer", path: "/developer" },
 ];
 
 interface SidebarProps {
