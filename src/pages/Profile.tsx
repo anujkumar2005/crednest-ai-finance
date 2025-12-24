@@ -160,19 +160,17 @@ export default function Profile() {
     setIsEditing(false);
   };
 
-  const ProfileField = ({
-    icon: Icon,
-    label,
-    value,
-    field,
-    type = "text",
-  }: {
-    icon: React.ElementType;
-    label: string;
-    value: string;
-    field: keyof UserProfile;
-    type?: string;
-  }) => (
+  const handleInputChange = (field: keyof UserProfile, value: string) => {
+    setEditedProfile(prev => ({ ...prev, [field]: value }));
+  };
+
+  const renderField = (
+    Icon: React.ElementType,
+    label: string,
+    value: string,
+    field: keyof UserProfile,
+    type = "text"
+  ) => (
     <div className="space-y-2">
       <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
         <Icon className="h-4 w-4" />
@@ -182,9 +180,7 @@ export default function Profile() {
         <Input
           type={type}
           value={editedProfile[field]}
-          onChange={(e) =>
-            setEditedProfile({ ...editedProfile, [field]: e.target.value })
-          }
+          onChange={(e) => handleInputChange(field, e.target.value)}
           placeholder={`Enter ${label.toLowerCase()}`}
         />
       ) : (
@@ -255,37 +251,22 @@ export default function Profile() {
                 <h3 className="text-lg font-semibold border-b border-border/50 pb-2">
                   Personal Information
                 </h3>
-                <ProfileField
-                  icon={User}
-                  label="Full Name"
-                  value={profile.name}
-                  field="name"
-                />
-                <ProfileField
-                  icon={Mail}
-                  label="Email"
-                  value={profile.email}
-                  field="email"
-                  type="email"
-                />
-                <ProfileField
-                  icon={Phone}
-                  label="Phone"
-                  value={profile.phone}
-                  field="phone"
-                  type="tel"
-                />
-                <ProfileField
-                  icon={Calendar}
-                  label="Date of Birth"
-                  value={profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  }) : ""}
-                  field="date_of_birth"
-                  type="date"
-                />
+                {renderField(User, "Full Name", profile.name, "name")}
+                {renderField(Mail, "Email", profile.email, "email", "email")}
+                {renderField(Phone, "Phone", profile.phone, "phone", "tel")}
+                {renderField(
+                  Calendar,
+                  "Date of Birth",
+                  profile.date_of_birth
+                    ? new Date(profile.date_of_birth).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : "",
+                  "date_of_birth",
+                  "date"
+                )}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <User className="h-4 w-4" />
@@ -295,9 +276,7 @@ export default function Profile() {
                     <select
                       className="w-full h-11 rounded-lg border border-border/50 bg-card/50 px-4 py-2 text-base"
                       value={editedProfile.gender}
-                      onChange={(e) =>
-                        setEditedProfile({ ...editedProfile, gender: e.target.value })
-                      }
+                      onChange={(e) => handleInputChange("gender", e.target.value)}
                     >
                       <option value="">Select gender</option>
                       <option value="Male">Male</option>
@@ -317,30 +296,10 @@ export default function Profile() {
                 <h3 className="text-lg font-semibold border-b border-border/50 pb-2">
                   Address
                 </h3>
-                <ProfileField
-                  icon={MapPin}
-                  label="Street Address"
-                  value={profile.address}
-                  field="address"
-                />
-                <ProfileField
-                  icon={Building}
-                  label="City"
-                  value={profile.city}
-                  field="city"
-                />
-                <ProfileField
-                  icon={MapPin}
-                  label="State"
-                  value={profile.state}
-                  field="state"
-                />
-                <ProfileField
-                  icon={MapPin}
-                  label="Pincode"
-                  value={profile.pincode}
-                  field="pincode"
-                />
+                {renderField(MapPin, "Street Address", profile.address, "address")}
+                {renderField(Building, "City", profile.city, "city")}
+                {renderField(MapPin, "State", profile.state, "state")}
+                {renderField(MapPin, "Pincode", profile.pincode, "pincode")}
               </div>
 
               {/* Professional */}
@@ -348,25 +307,15 @@ export default function Profile() {
                 <h3 className="text-lg font-semibold border-b border-border/50 pb-2">
                   Professional Details
                 </h3>
-                <ProfileField
-                  icon={Briefcase}
-                  label="Occupation"
-                  value={profile.occupation}
-                  field="occupation"
-                />
-                <ProfileField
-                  icon={Building}
-                  label="Company"
-                  value={profile.company}
-                  field="company"
-                />
-                <ProfileField
-                  icon={IndianRupee}
-                  label="Monthly Income"
-                  value={profile.monthly_income ? `₹${parseInt(profile.monthly_income).toLocaleString()}` : ""}
-                  field="monthly_income"
-                  type="number"
-                />
+                {renderField(Briefcase, "Occupation", profile.occupation, "occupation")}
+                {renderField(Building, "Company", profile.company, "company")}
+                {renderField(
+                  IndianRupee,
+                  "Monthly Income",
+                  profile.monthly_income ? `₹${parseInt(profile.monthly_income).toLocaleString()}` : "",
+                  "monthly_income",
+                  "number"
+                )}
               </div>
 
               {/* Bio */}
@@ -380,9 +329,7 @@ export default function Profile() {
                     <textarea
                       className="w-full h-32 rounded-lg border border-border/50 bg-card/50 px-4 py-2 text-base resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                       value={editedProfile.bio}
-                      onChange={(e) =>
-                        setEditedProfile({ ...editedProfile, bio: e.target.value })
-                      }
+                      onChange={(e) => handleInputChange("bio", e.target.value)}
                       placeholder="Tell us about yourself..."
                     />
                   ) : (
