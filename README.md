@@ -99,5 +99,3 @@ Open [http://localhost:8080](http://localhost:8080)
 - Supports loan/insurance calculations
 
 ---
-
-Built with [Lovable](https://lovable.dev) • [Documentation](https://docs.lovable.dev)
