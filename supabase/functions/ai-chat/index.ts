@@ -134,40 +134,94 @@ function needsLiveData(message: string): boolean {
   return liveDataKeywords.some(keyword => lowerMessage.includes(keyword));
 }
 
+function getMonthYearLabel(d: Date = new Date()): string {
+  const month = d.toLocaleString("en-IN", { month: "long" });
+  const year = d.getFullYear();
+  return `${month} ${year}`;
+}
+
+type BankHint = { ilike: string; display: string } | null;
+function extractBankHint(message: string): BankHint {
+  const m = message.toLowerCase();
+  const banks: Array<{ re: RegExp; ilike: string; display: string }> = [
+    { re: /\bsbi\b|state bank of india|state bank/i, ilike: "%State Bank%", display: "State Bank of India (SBI)" },
+    { re: /\bhdfc\b|hdfc bank/i, ilike: "%HDFC%", display: "HDFC Bank" },
+    { re: /\bicici\b|icici bank/i, ilike: "%ICICI%", display: "ICICI Bank" },
+    { re: /\baxis\b|axis bank/i, ilike: "%Axis%", display: "Axis Bank" },
+    { re: /\bpn?b\b|punjab national bank/i, ilike: "%Punjab National%", display: "Punjab National Bank (PNB)" },
+    { re: /\bboi\b|bank of india/i, ilike: "%Bank of India%", display: "Bank of India (BOI)" },
+    { re: /\bcanara\b|canara bank/i, ilike: "%Canara%", display: "Canara Bank" },
+    { re: /\bkotak\b|kotak mahindra/i, ilike: "%Kotak%", display: "Kotak Mahindra Bank" },
+    { re: /\bindusind\b|indusind bank/i, ilike: "%IndusInd%", display: "IndusInd Bank" },
+  ];
+  const hit = banks.find((b) => b.re.test(m));
+  return hit ? { ilike: hit.ilike, display: hit.display } : null;
+}
+
+type LoanType =
+  | "education"
+  | "home"
+  | "personal"
+  | "car"
+  | "business"
+  | "gold"
+  | "agri";
+
+function extractLoanType(message: string): LoanType | null {
+  const m = message.toLowerCase();
+  if (m.includes("education") || m.includes("student")) return "education";
+  if (m.includes("home") || m.includes("housing")) return "home";
+  if (m.includes("personal")) return "personal";
+  if (m.includes("car") || m.includes("auto")) return "car";
+  if (m.includes("business") || m.includes("msme") || m.includes("working capital")) return "business";
+  if (m.includes("gold")) return "gold";
+  if (m.includes("agri") || m.includes("agriculture") || m.includes("kisan")) return "agri";
+  return null;
+}
+
 // Build query for Perplexity based on user message
 function buildPerplexityQuery(message: string): string {
   const lowerMessage = message.toLowerCase();
+  const monthYear = getMonthYearLabel();
+  const bank = extractBankHint(message)?.display;
+  const loanType = extractLoanType(message);
   
   if (lowerMessage.includes("loan") && (lowerMessage.includes("rate") || lowerMessage.includes("interest"))) {
-    return `Current loan interest rates in India December 2024 - Include home loan, personal loan, car loan rates from major banks like SBI, HDFC, ICICI, Axis. Provide specific percentages.`;
+    if (bank && loanType) {
+      return `What is the current ${loanType} loan interest rate range offered by ${bank} in India as of ${monthYear}? Provide the rate (% p.a.), key conditions (loan amount/tenure/CIBIL if available), and the official page link. Return concise bullet points.`;
+    }
+    if (bank) {
+      return `What are the current loan interest rates offered by ${bank} in India as of ${monthYear}? Provide rates for home, personal, car, and education loans (if available), and include official source link(s).`;
+    }
+    return `Current loan interest rates in India as of ${monthYear} - Include home loan, personal loan, car loan, and education loan rates from major banks like SBI, HDFC, ICICI, Axis. Provide specific percentages and cite sources.`;
   }
   
   if (lowerMessage.includes("fd") || lowerMessage.includes("fixed deposit")) {
-    return `Current FD interest rates in India December 2024 - Best fixed deposit rates from major banks and small finance banks. Include 1 year, 3 year, 5 year rates.`;
+    return `Current FD interest rates in India as of ${monthYear} - Best fixed deposit rates from major banks and small finance banks. Include 1 year, 3 year, 5 year rates, and cite sources.`;
   }
   
   if (lowerMessage.includes("mutual fund") || lowerMessage.includes("sip")) {
-    return `Top performing mutual funds in India December 2024 - Best equity, debt, and hybrid funds with 1 year returns and ratings.`;
+    return `Top performing mutual funds in India as of ${monthYear} - Best equity, debt, and hybrid funds with 1 year returns and ratings. Cite sources.`;
   }
   
   if (lowerMessage.includes("gold")) {
-    return `Current gold price in India today December 2024 - 24 karat and 22 karat gold rates per gram in INR.`;
+    return `Current gold price in India today (${monthYear}) - 24 karat and 22 karat gold rates per gram in INR. Cite sources.`;
   }
   
   if (lowerMessage.includes("nifty") || lowerMessage.includes("sensex") || lowerMessage.includes("stock")) {
-    return `Current Nifty 50 and Sensex levels December 2024 - Latest market data and performance.`;
+    return `Current Nifty 50 and Sensex levels (${monthYear}) - Latest market data and performance. Cite sources.`;
   }
   
   if (lowerMessage.includes("rbi") || lowerMessage.includes("repo")) {
-    return `Current RBI repo rate and monetary policy December 2024 - Latest interest rate decisions.`;
+    return `Current RBI repo rate and monetary policy as of ${monthYear} - Latest interest rate decisions. Cite official sources.`;
   }
   
   if (lowerMessage.includes("insurance")) {
-    return `Best insurance companies in India 2024 - Claim settlement ratios and premium rates for life and health insurance.`;
+    return `Best insurance companies in India ${new Date().getFullYear()} - Claim settlement ratios and indicative premium ranges for life and health insurance. Cite sources.`;
   }
   
   // Default financial query
-  return `Latest information about: ${message} - Focus on Indian financial context with current rates and data from December 2024.`;
+  return `Latest information about: ${message} - Focus on Indian financial context with current rates and data as of ${monthYear}. Cite sources.`;
 }
 
 serve(async (req) => {
@@ -243,44 +297,62 @@ serve(async (req) => {
     const lastUserMessage = messages.filter((m: Message) => m.role === "user").pop()?.content || "";
     console.log("Processing message for user:", verifiedUserId, "Message:", lastUserMessage.substring(0, 100));
 
+    const bankHint = extractBankHint(lastUserMessage);
+    const loanType = extractLoanType(lastUserMessage);
+
     // Fetch live data from Perplexity if needed
     let liveDataContext = "";
     if (PERPLEXITY_API_KEY && needsLiveData(lastUserMessage)) {
       const perplexityQuery = buildPerplexityQuery(lastUserMessage);
       const liveData = await fetchLiveDataFromPerplexity(perplexityQuery, PERPLEXITY_API_KEY);
       if (liveData) {
-        liveDataContext = `\n\n### 📊 Live Data (Fetched from Internet - December 2024):\n${liveData}\n`;
+        liveDataContext = `\n\n### 📊 Live Data (Fetched from Internet - ${getMonthYearLabel()}):\n${liveData}\n`;
       }
     }
 
     // Search for relevant financial corpus data (RAG)
     let ragContext = "";
     try {
-      const searchTerms = lastUserMessage.toLowerCase();
-      
-      const { data: corpusData, error: corpusError } = await supabase
+      const rawTerms = lastUserMessage
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((t: string) => t.length >= 4)
+        .slice(0, 5);
+
+      // Build a broad OR query across relevant columns using ilike.
+      // Example: title.ilike.%loan%,content.ilike.%loan%,bank_name.ilike.%loan%,title.ilike.%sbi%,...
+      const orParts = rawTerms.flatMap((term: string) => [
+        `title.ilike.%${term}%`,
+        `content.ilike.%${term}%`,
+        `bank_name.ilike.%${term}%`,
+        `category.ilike.%${term}%`,
+        `subcategory.ilike.%${term}%`,
+      ]);
+
+      let corpusQuery = supabase
         .from("financial_corpus")
         .select("title, content, category, subcategory, bank_name")
         .limit(5);
+
+      if (orParts.length > 0) corpusQuery = corpusQuery.or(orParts.join(","));
+
+      const { data: corpusData, error: corpusError } = await corpusQuery;
 
       if (corpusError) {
         console.error("Corpus search error:", corpusError);
       }
 
       if (corpusData && corpusData.length > 0) {
-        const relevantCorpus = corpusData.filter(item => {
-          const content = `${item.title} ${item.content} ${item.category} ${item.subcategory || ''} ${item.bank_name || ''}`.toLowerCase();
-          return searchTerms.split(' ').some((term: string) => 
-            term.length > 3 && content.includes(term)
-          );
-        }).slice(0, 3);
-
-        if (relevantCorpus.length > 0) {
-          ragContext = "\n\n### Relevant Financial Data from our Database:\n" + 
-            relevantCorpus.map(item => 
-              `**${item.title}** (${item.category}${item.bank_name ? ` - ${item.bank_name}` : ''}):\n${item.content}`
-            ).join("\n\n");
-        }
+        const relevantCorpus = corpusData.slice(0, 3);
+        ragContext =
+          "\n\n### Relevant Financial Data from our Database:\n" +
+          relevantCorpus
+            .map(
+              (item) =>
+                `**${item.title}** (${item.category}${item.bank_name ? ` - ${item.bank_name}` : ""}):\n${item.content}`
+            )
+            .join("\n\n");
       }
     } catch (ragError) {
       console.error("RAG search error:", ragError);
@@ -289,17 +361,65 @@ serve(async (req) => {
     // Fetch bank data for context
     let bankContext = "";
     try {
+      // If user asked about a specific bank, fetch that bank first for accuracy.
+      let bankSpecificLine = "";
+      if (bankHint) {
+        const { data: bankRow } = await supabase
+          .from("banks")
+          .select(
+            "name, personal_loan_rate, home_loan_rate, car_loan_rate, education_loan_rate, business_loan_rate, processing_fee, min_cibil_score, rating, website, updated_at"
+          )
+          .ilike("name", bankHint.ilike)
+          .limit(1)
+          .maybeSingle();
+
+        if (bankRow) {
+          const rateByType: Record<LoanType, number | null | undefined> = {
+            education: bankRow.education_loan_rate,
+            home: bankRow.home_loan_rate,
+            personal: bankRow.personal_loan_rate,
+            car: bankRow.car_loan_rate,
+            business: bankRow.business_loan_rate,
+            gold: null,
+            agri: null,
+          };
+          const specificRate = loanType ? rateByType[loanType] : null;
+
+          bankSpecificLine = `- **${bankRow.name}**: Personal ${bankRow.personal_loan_rate ?? "—"}%, Home ${bankRow.home_loan_rate ?? "—"}%, Car ${bankRow.car_loan_rate ?? "—"}%, Education ${bankRow.education_loan_rate ?? "—"}% | Processing: ${bankRow.processing_fee ?? "—"}% | Min CIBIL: ${bankRow.min_cibil_score ?? "—"} | Rating: ${bankRow.rating ?? "—"}/5`;
+
+          // Promote a verified, bank+loan-type specific rate if present.
+          if (loanType && typeof specificRate === "number") {
+            bankContext +=
+              `\n\n### ✅ Verified Rate (Bank Rates Database):\n` +
+              `- Bank: **${bankRow.name}**\n` +
+              `- Product: **${loanType} loan**\n` +
+              `- Interest rate: **${specificRate}% p.a.**\n` +
+              `${bankRow.updated_at ? `- Database updated: ${new Date(bankRow.updated_at).toLocaleDateString("en-IN")}\n` : ""}` +
+              `${bankRow.website ? `- Official website: ${bankRow.website}\n` : ""}`;
+          }
+        }
+      }
+
       const { data: banks } = await supabase
         .from("banks")
-        .select("name, personal_loan_rate, home_loan_rate, car_loan_rate, education_loan_rate, processing_fee, min_cibil_score, rating, website")
+        .select(
+          "name, personal_loan_rate, home_loan_rate, car_loan_rate, education_loan_rate, processing_fee, min_cibil_score, rating, website"
+        )
         .order("rating", { ascending: false })
         .limit(10);
 
       if (banks && banks.length > 0) {
-        bankContext = "\n\n### Current Bank Rates (Database):\n" +
-          banks.map(b => 
-            `- **${b.name}**: Personal ${b.personal_loan_rate}%, Home ${b.home_loan_rate}%, Car ${b.car_loan_rate}%, Education ${b.education_loan_rate}% | Processing: ${b.processing_fee}% | Min CIBIL: ${b.min_cibil_score} | Rating: ${b.rating}/5`
-          ).join("\n");
+        // Ensure the bank-specific row appears first (if present).
+        const listLines = banks
+          .map(
+            (b) =>
+              `- **${b.name}**: Personal ${b.personal_loan_rate ?? "—"}%, Home ${b.home_loan_rate ?? "—"}%, Car ${b.car_loan_rate ?? "—"}%, Education ${b.education_loan_rate ?? "—"}% | Processing: ${b.processing_fee ?? "—"}% | Min CIBIL: ${b.min_cibil_score ?? "—"} | Rating: ${b.rating ?? "—"}/5`
+          )
+          .filter(Boolean);
+
+        bankContext +=
+          "\n\n### Current Bank Rates (Database):\n" +
+          (bankSpecificLine ? [bankSpecificLine, ...listLines.filter((l) => l !== bankSpecificLine)].join("\n") : listLines.join("\n"));
       }
     } catch (bankError) {
       console.error("Bank fetch error:", bankError);
