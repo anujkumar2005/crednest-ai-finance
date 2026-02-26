@@ -24,6 +24,14 @@ import {
   AlertCircle,
   Info,
   Landmark,
+  FileText,
+  Calendar,
+  ClipboardList,
+  Clock,
+  ExternalLink,
+  Users,
+  Briefcase,
+  Shield,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -251,7 +259,7 @@ export default function TaxPlanning() {
         </div>
 
         <Tabs defaultValue="regime" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
             <TabsTrigger value="regime" className="flex items-center gap-2">
               <ArrowRightLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Old vs New</span>
@@ -265,6 +273,11 @@ export default function TaxPlanning() {
             <TabsTrigger value="hra" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               <span>HRA</span>
+            </TabsTrigger>
+            <TabsTrigger value="itr" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">ITR Filing</span>
+              <span className="sm:hidden">ITR</span>
             </TabsTrigger>
           </TabsList>
 
@@ -784,6 +797,311 @@ export default function TaxPlanning() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+          {/* ========== ITR Filing Guide ========== */}
+          <TabsContent value="itr" className="space-y-6">
+            {/* ITR Form Selector */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  form: "ITR-1 (Sahaj)",
+                  icon: Users,
+                  who: "Salaried individuals",
+                  income: "Up to ₹50L from salary, one house property, other sources (interest etc.)",
+                  not: "Not for capital gains, business income, or foreign assets",
+                },
+                {
+                  form: "ITR-2",
+                  icon: Briefcase,
+                  who: "Individuals & HUFs",
+                  income: "Salary, multiple house properties, capital gains, foreign income/assets",
+                  not: "Not for business or professional income",
+                },
+                {
+                  form: "ITR-3",
+                  icon: Building2,
+                  who: "Individuals & HUFs with business income",
+                  income: "All income sources including business/profession",
+                  not: "For those opting for presumptive taxation, use ITR-4",
+                },
+                {
+                  form: "ITR-4 (Sugam)",
+                  icon: Calculator,
+                  who: "Individuals, HUFs & Firms (presumptive)",
+                  income: "Up to ₹50L salary + business income under Sec 44AD/44ADA/44AE",
+                  not: "Not for income > ₹50L or capital gains",
+                },
+                {
+                  form: "ITR-5",
+                  icon: Users,
+                  who: "Firms, LLPs, AOPs, BOIs",
+                  income: "Partnership firms and other entities (not companies or individuals)",
+                  not: "Not for individuals or companies",
+                },
+                {
+                  form: "ITR-6 & ITR-7",
+                  icon: Landmark,
+                  who: "Companies & Trusts",
+                  income: "ITR-6 for companies (except Sec 11), ITR-7 for trusts, political parties",
+                  not: "Specialized forms for entities",
+                },
+              ].map((itr) => (
+                <Card key={itr.form} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <itr.icon className="h-5 w-5 text-primary" />
+                      <CardTitle className="text-base">{itr.form}</CardTitle>
+                    </div>
+                    <CardDescription>{itr.who}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                      <span className="text-muted-foreground">{itr.income}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      <span className="text-muted-foreground">{itr.not}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Important Due Dates */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Important Due Dates - FY 2025-26 (AY 2026-27)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    { date: "15 Jun 2026", event: "Advance Tax - 1st Installment", percent: "15%", color: "bg-blue-500/10 border-blue-500/30" },
+                    { date: "15 Sep 2026", event: "Advance Tax - 2nd Installment", percent: "45%", color: "bg-indigo-500/10 border-indigo-500/30" },
+                    { date: "15 Dec 2026", event: "Advance Tax - 3rd Installment", percent: "75%", color: "bg-violet-500/10 border-violet-500/30" },
+                    { date: "15 Mar 2027", event: "Advance Tax - 4th Installment", percent: "100%", color: "bg-purple-500/10 border-purple-500/30" },
+                    { date: "31 Jul 2026", event: "ITR Filing - Individuals (non-audit)", percent: "", color: "bg-green-500/10 border-green-500/30" },
+                    { date: "31 Oct 2026", event: "ITR Filing - Audit cases", percent: "", color: "bg-yellow-500/10 border-yellow-500/30" },
+                    { date: "30 Nov 2026", event: "ITR Filing - Transfer Pricing", percent: "", color: "bg-orange-500/10 border-orange-500/30" },
+                    { date: "31 Dec 2026", event: "Belated/Revised Return", percent: "", color: "bg-red-500/10 border-red-500/30" },
+                  ].map((item) => (
+                    <div key={item.event} className={`rounded-lg border p-3 ${item.color}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold text-sm">{item.date}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{item.event}</p>
+                      {item.percent && (
+                        <Badge variant="secondary" className="mt-1 text-xs">{item.percent} cumulative</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Step-by-Step Filing Guide */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5" />
+                  Step-by-Step ITR Filing Guide
+                </CardTitle>
+                <CardDescription>How to file your Income Tax Return on the e-Filing portal</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    {
+                      step: 1,
+                      title: "Gather Documents",
+                      desc: "Collect Form 16 (from employer), Form 26AS (tax credit statement), AIS (Annual Information Statement), bank statements, investment proofs, and rent receipts.",
+                    },
+                    {
+                      step: 2,
+                      title: "Register/Login on e-Filing Portal",
+                      desc: "Visit incometax.gov.in and register with PAN. If already registered, login with your credentials. Link Aadhaar if not already done.",
+                    },
+                    {
+                      step: 3,
+                      title: "Select the Correct ITR Form",
+                      desc: "Choose ITR-1 for salaried (income up to ₹50L), ITR-2 for capital gains, ITR-3 for business income, or ITR-4 for presumptive taxation.",
+                    },
+                    {
+                      step: 4,
+                      title: "Fill Income Details",
+                      desc: "Enter salary details (from Form 16), house property income, capital gains, other sources. Most data is pre-filled from Form 26AS and AIS.",
+                    },
+                    {
+                      step: 5,
+                      title: "Claim Deductions",
+                      desc: "Enter deductions under 80C (PPF, ELSS, LIC), 80D (medical insurance), 80E (education loan interest), 80G (donations), HRA, and home loan interest.",
+                    },
+                    {
+                      step: 6,
+                      title: "Verify Tax Computation",
+                      desc: "Review the auto-calculated tax liability. Cross-check with TDS deducted (Form 26AS), advance tax paid, and self-assessment tax. Pay any remaining tax via Challan 280.",
+                    },
+                    {
+                      step: 7,
+                      title: "Submit & e-Verify",
+                      desc: "Submit the return and e-verify using Aadhaar OTP, net banking, DSC, or bank account EVC. E-verification must be done within 30 days of filing.",
+                    },
+                  ].map((item) => (
+                    <div key={item.step} className="flex gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                        {item.step}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm">{item.title}</h4>
+                        <p className="text-xs text-muted-foreground mt-1">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Documents Required & Refund Info */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Documents Required
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {[
+                      "PAN Card & Aadhaar Card",
+                      "Form 16 (from employer)",
+                      "Form 26AS / AIS (tax credit statement)",
+                      "Bank statements (all accounts)",
+                      "Investment proofs (PPF, ELSS, LIC, NPS)",
+                      "Medical insurance premium receipts (80D)",
+                      "Home loan interest certificate (24b)",
+                      "Rent receipts & landlord PAN (if HRA > ₹1L)",
+                      "Capital gains statements (stocks, MF, property)",
+                      "Donation receipts (80G)",
+                      "Education loan interest certificate (80E)",
+                      "Form 16A/16B/16C (TDS on other income)",
+                    ].map((doc) => (
+                      <li key={doc} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                        <span className="text-muted-foreground">{doc}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <IndianRupee className="h-5 w-5" />
+                    Tax Refund Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-lg border bg-green-500/5 border-green-500/20">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        When You Get a Refund
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Refund is issued when TDS deducted or advance tax paid exceeds your actual tax liability. Typically processed within 20-45 days of e-verification.
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-blue-500/5 border-blue-500/20">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <Info className="h-4 w-4 text-blue-500" />
+                        Track Refund Status
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Check refund status on incometax.gov.in → My Account → Refund/Demand Status, or via NSDL (tin.tin.nsdl.com).
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-yellow-500/5 border-yellow-500/20">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        Interest on Refund
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Under Section 244A, you earn 0.5% per month interest on refunds (simple interest). Interest is calculated from April of the AY to the date of refund.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Common Mistakes & Tips */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Common Mistakes to Avoid
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { mistake: "Not reporting all bank accounts", tip: "All savings/current accounts must be declared, even with zero balance." },
+                    { mistake: "Missing capital gains from MF/stocks", tip: "Even ₹1 gain from equity or debt MF redemption must be reported." },
+                    { mistake: "Wrong ITR form selection", tip: "Filing ITR-1 with capital gains leads to defective return notice." },
+                    { mistake: "Not matching Form 26AS with TDS", tip: "Mismatch causes processing delays. Verify every TDS entry." },
+                    { mistake: "Forgetting to verify AIS", tip: "Annual Information Statement may have high-value transactions you missed." },
+                    { mistake: "Not e-verifying within 30 days", tip: "Unverified returns are treated as not filed. Use Aadhaar OTP for instant verification." },
+                    { mistake: "Ignoring interest income", tip: "FD/savings interest is taxable. Banks deduct TDS but full interest must be declared." },
+                    { mistake: "Claiming wrong HRA exemption", tip: "HRA exemption requires actual rent payment. Self-occupied house owners cannot claim HRA." },
+                  ].map((item) => (
+                    <div key={item.mistake} className="flex gap-3 p-3 rounded-lg border">
+                      <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">{item.mistake}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{item.tip}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Links */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ExternalLink className="h-5 w-5" />
+                  Useful Links
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    { label: "e-Filing Portal", url: "https://www.incometax.gov.in" },
+                    { label: "Form 26AS", url: "https://www.tdscpc.gov.in" },
+                    { label: "Tax Refund Status (NSDL)", url: "https://tin.tin.nsdl.com/oltas/refund-status-pan.html" },
+                    { label: "Challan 280 (Pay Tax)", url: "https://onlineservices.tin.egov-nsdl.com/etaxnew/tdsnontds.jsp" },
+                  ].map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-3 rounded-lg border hover:bg-accent/50 transition-colors text-sm"
+                    >
+                      <ExternalLink className="h-4 w-4 text-primary shrink-0" />
+                      <span>{link.label}</span>
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
