@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+import ReactMarkdown from "react-markdown";
 import {
   FileText,
   Calendar,
@@ -33,6 +38,14 @@ import {
   HelpCircle,
   Download,
   Eye,
+  MessageSquare,
+  Send,
+  Loader2,
+  Trash2,
+  Plus,
+  Bot,
+  User,
+  Search,
 } from "lucide-react";
 
 function formatCurrency(amount: number): string {
@@ -306,6 +319,200 @@ export default function ITRFiling() {
   const [penaltyMonthsLate, setPenaltyMonthsLate] = useState(3);
   const [selectedForm, setSelectedForm] = useState<string | null>(null);
 
+  // Chat state
+  const { session } = useAuth();
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [chatPhase, setChatPhase] = useState("");
+  const [chatSessions, setChatSessions] = useState<Array<{ id: string; title: string; messages: Array<{ role: "user" | "assistant"; content: string }> }>>([]);
+  const [activeChatSession, setActiveChatSession] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages, scrollToBottom]);
+
+  // Load chat sessions from DB
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const loadSessions = async () => {
+      const { data: sessions } = await supabase
+        .from("chat_sessions")
+        .select("id, title, created_at")
+        .eq("user_id", session.user.id)
+        .order("updated_at", { ascending: false });
+
+      if (sessions) {
+        // Filter to ITR sessions (title starts with "ITR:")
+        const itrSessions = sessions.filter(s => s.title?.startsWith("ITR:"));
+        const loaded = [];
+        for (const s of itrSessions.slice(0, 10)) {
+          const { data: msgs } = await supabase
+            .from("chat_messages")
+            .select("role, content")
+            .eq("session_id", s.id)
+            .order("created_at", { ascending: true });
+          loaded.push({
+            id: s.id,
+            title: s.title?.replace("ITR: ", "") || "New Chat",
+            messages: (msgs || []).map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+          });
+        }
+        setChatSessions(loaded);
+      }
+    };
+    loadSessions();
+  }, [session?.user?.id]);
+
+  const createNewChat = async () => {
+    setChatMessages([]);
+    setActiveChatSession(null);
+  };
+
+  const loadSession = (sessionId: string) => {
+    const found = chatSessions.find(s => s.id === sessionId);
+    if (found) {
+      setChatMessages(found.messages);
+      setActiveChatSession(found.id);
+    }
+  };
+
+  const deleteSession = async (sessionId: string) => {
+    await supabase.from("chat_messages").delete().eq("session_id", sessionId);
+    await supabase.from("chat_sessions").delete().eq("id", sessionId);
+    setChatSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeChatSession === sessionId) {
+      setChatMessages([]);
+      setActiveChatSession(null);
+    }
+  };
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || isTyping || !session?.user?.id) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setIsTyping(true);
+
+    // Phases
+    setChatPhase("Searching tax rules...");
+    setTimeout(() => setChatPhase("Analyzing ITR provisions..."), 1500);
+    setTimeout(() => setChatPhase("Generating response..."), 3000);
+
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const token = authSession?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      // Create or use existing session
+      let sessionId = activeChatSession;
+      if (!sessionId) {
+        const { data: newSession } = await supabase.from("chat_sessions").insert({
+          user_id: session.user.id,
+          title: `ITR: ${userMsg.substring(0, 40)}`,
+        }).select("id").single();
+        sessionId = newSession?.id || null;
+        setActiveChatSession(sessionId);
+      }
+
+      // Save user message
+      if (sessionId) {
+        await supabase.from("chat_messages").insert({
+          session_id: sessionId,
+          user_id: session.user.id,
+          role: "user",
+          content: userMsg,
+        });
+      }
+
+      const allMessages = [...chatMessages, { role: "user" as const, content: userMsg }];
+
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/itr-chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ messages: allMessages }),
+      });
+
+      if (!resp.ok || !resp.body) {
+        if (resp.status === 429) {
+          toast({ title: "Rate Limited", description: "Please try again in a moment.", variant: "destructive" });
+        } else if (resp.status === 402) {
+          toast({ title: "Credits Exhausted", description: "Please add credits to continue.", variant: "destructive" });
+        }
+        throw new Error("Stream failed");
+      }
+
+      // Stream response
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let assistantContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              assistantContent += delta;
+              setChatMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last?.role === "assistant") {
+                  return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantContent } : m);
+                }
+                return [...prev, { role: "assistant", content: assistantContent }];
+              });
+            }
+          } catch { /* partial JSON */ }
+        }
+      }
+
+      // Save assistant message
+      if (sessionId && assistantContent) {
+        await supabase.from("chat_messages").insert({
+          session_id: sessionId,
+          user_id: session.user.id,
+          role: "assistant",
+          content: assistantContent,
+        });
+        // Update session list
+        setChatSessions(prev => {
+          const existing = prev.find(s => s.id === sessionId);
+          if (existing) {
+            return prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, { role: "user" as const, content: userMsg }, { role: "assistant" as const, content: assistantContent }] } : s);
+          }
+          return [{ id: sessionId!, title: userMsg.substring(0, 40), messages: [{ role: "user", content: userMsg }, { role: "assistant", content: assistantContent }] }, ...prev];
+        });
+      }
+    } catch (error) {
+      console.error("ITR chat error:", error);
+      setChatMessages(prev => [...prev, { role: "assistant", content: "Sorry, I encountered an error. Please try again." }]);
+    } finally {
+      setIsTyping(false);
+      setChatPhase("");
+    }
+  };
+
   // Penalty calculations
   const penaltyCalc = useMemo(() => {
     const interest234A = Math.ceil(penaltyTaxDue * 0.01 * penaltyMonthsLate);
@@ -329,7 +536,7 @@ export default function ITRFiling() {
         </div>
 
         <Tabs defaultValue="guide" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 lg:w-auto lg:inline-grid">
             <TabsTrigger value="guide" className="flex items-center gap-1.5">
               <ClipboardList className="h-4 w-4" />
               <span className="hidden sm:inline">Filing Guide</span>
@@ -353,6 +560,11 @@ export default function ITRFiling() {
             <TabsTrigger value="faq" className="flex items-center gap-1.5">
               <HelpCircle className="h-4 w-4" />
               <span>FAQ</span>
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="flex items-center gap-1.5">
+              <MessageSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">ITR Assistant</span>
+              <span className="sm:hidden">AI</span>
             </TabsTrigger>
           </TabsList>
 
@@ -908,6 +1120,168 @@ export default function ITRFiling() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ========== AI ITR Assistant ========== */}
+          <TabsContent value="ai" className="space-y-0">
+            <div className="grid gap-4 lg:grid-cols-[280px_1fr] h-[calc(100vh-250px)]">
+              {/* Chat History Sidebar */}
+              <Card className="hidden lg:flex flex-col">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Chat History</CardTitle>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={createNewChat}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
+                    <Input placeholder="Search..." className="h-8 pl-7 text-xs" />
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {chatSessions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No conversations yet</p>
+                  ) : (
+                    chatSessions.map((s) => (
+                      <div
+                        key={s.id}
+                        className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs transition-colors ${activeChatSession === s.id ? "bg-accent" : "hover:bg-accent/50"}`}
+                        onClick={() => loadSession(s.id)}
+                      >
+                        <span className="truncate flex-1">{s.title}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100"
+                          onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Chat Area */}
+              <Card className="flex flex-col">
+                <CardHeader className="pb-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-5 w-5 text-primary" />
+                    <div>
+                      <CardTitle className="text-sm">ITR Filing Assistant</CardTitle>
+                      <CardDescription className="text-xs">Expert in Indian Income Tax Returns • FY 2025-26</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                {/* Messages */}
+                <ScrollArea className="flex-1 p-4">
+                  <div className="space-y-4">
+                    {chatMessages.length === 0 && (
+                      <div className="text-center py-8 space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                          <Bot className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">ITR Filing Assistant</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Ask me anything about Income Tax Returns, filing process, deductions, or tax rules.
+                          </p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2 max-w-lg mx-auto">
+                          {[
+                            "Which ITR form should I file as a salaried person?",
+                            "How to claim HRA exemption in ITR?",
+                            "Calculate tax on ₹12 lakh income",
+                            "What is the deadline for filing ITR?",
+                            "How to file revised return?",
+                            "What deductions can I claim under 80C?",
+                          ].map((q) => (
+                            <button
+                              key={q}
+                              onClick={() => { setChatInput(q); }}
+                              className="text-left text-xs p-2.5 rounded-lg border hover:bg-accent/50 transition-colors text-muted-foreground"
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {chatMessages.map((msg, idx) => (
+                      <div key={idx} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                        {msg.role === "assistant" && (
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
+                            <Bot className="h-4 w-4 text-primary" />
+                          </div>
+                        )}
+                        <div className={`max-w-[80%] rounded-xl px-4 py-2.5 ${
+                          msg.role === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
+                        }`}>
+                          {msg.role === "assistant" ? (
+                            <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+                              <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm">{msg.content}</p>
+                          )}
+                        </div>
+                        {msg.role === "user" && (
+                          <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center shrink-0 mt-1">
+                            <User className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {isTyping && (
+                      <div className="flex gap-3 justify-start">
+                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Bot className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="bg-muted rounded-xl px-4 py-2.5">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {chatPhase || "Thinking..."}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                </ScrollArea>
+
+                {/* Input */}
+                <div className="p-3 border-t">
+                  <div className="flex gap-2">
+                    <Input
+                      ref={chatInputRef}
+                      placeholder="Ask about ITR filing, tax rules, deductions..."
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
+                      disabled={isTyping}
+                      className="flex-1"
+                    />
+                    <Button
+                      size="icon"
+                      onClick={handleChatSend}
+                      disabled={!chatInput.trim() || isTyping}
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+                    ITR Assistant specializes in Indian income tax. For other financial queries, use the main AI Assistant.
+                  </p>
+                </div>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
