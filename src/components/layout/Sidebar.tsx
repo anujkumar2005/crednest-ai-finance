@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Building2,
   Shield,
+  Calculator,
   User,
   LogOut,
   Menu,
@@ -28,6 +29,7 @@ const navItems = [
   { icon: TrendingUp, label: "Investments", path: "/investments" },
   { icon: Building2, label: "Loans", path: "/loans" },
   { icon: Shield, label: "Insurance", path: "/insurance" },
+  { icon: Calculator, label: "Tax Planning", path: "/tax" },
 ];
 
 const bottomItems = [
