@@ -9,6 +9,7 @@ import {
   Building2,
   Shield,
   Calculator,
+  FileText,
   User,
   LogOut,
   Menu,
@@ -30,6 +31,7 @@ const navItems = [
   { icon: Building2, label: "Loans", path: "/loans" },
   { icon: Shield, label: "Insurance", path: "/insurance" },
   { icon: Calculator, label: "Tax Planning", path: "/tax" },
+  { icon: FileText, label: "ITR Filing", path: "/itr" },
 ];
 
 const bottomItems = [
