@@ -292,6 +292,72 @@ export type Database = {
         }
         Relationships: []
       }
+      government_schemes: {
+        Row: {
+          age_max: number | null
+          age_min: number | null
+          benefits: string | null
+          category: string
+          created_at: string | null
+          description: string
+          documents_required: string[] | null
+          eligibility_criteria: Json | null
+          how_to_apply: string | null
+          id: string
+          income_limit: number | null
+          is_active: boolean | null
+          keywords: string[] | null
+          launch_year: number | null
+          ministry: string | null
+          name: string
+          target_audience: string
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          age_max?: number | null
+          age_min?: number | null
+          benefits?: string | null
+          category: string
+          created_at?: string | null
+          description: string
+          documents_required?: string[] | null
+          eligibility_criteria?: Json | null
+          how_to_apply?: string | null
+          id?: string
+          income_limit?: number | null
+          is_active?: boolean | null
+          keywords?: string[] | null
+          launch_year?: number | null
+          ministry?: string | null
+          name: string
+          target_audience: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          age_max?: number | null
+          age_min?: number | null
+          benefits?: string | null
+          category?: string
+          created_at?: string | null
+          description?: string
+          documents_required?: string[] | null
+          eligibility_criteria?: Json | null
+          how_to_apply?: string | null
+          id?: string
+          income_limit?: number | null
+          is_active?: boolean | null
+          keywords?: string[] | null
+          launch_year?: number | null
+          ministry?: string | null
+          name?: string
+          target_audience?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       incomes: {
         Row: {
           amount: number
