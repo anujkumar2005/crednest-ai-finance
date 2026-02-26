@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Info,
   Code2,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -32,6 +33,7 @@ const navItems = [
   { icon: Shield, label: "Insurance", path: "/insurance" },
   { icon: Calculator, label: "Tax Planning", path: "/tax" },
   { icon: FileText, label: "ITR Filing", path: "/itr" },
+  { icon: Landmark, label: "Govt Schemes", path: "/schemes" },
 ];
 
 const bottomItems = [
