@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.live-loan-rates]
 verify_jwt = false
+
+[functions.itr-chat]
+verify_jwt = false
