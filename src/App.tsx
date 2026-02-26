@@ -17,6 +17,7 @@ import Investments from "./pages/Investments";
 import Loans from "./pages/Loans";
 import Insurance from "./pages/Insurance";
 import TaxPlanning from "./pages/TaxPlanning";
+import ITRFiling from "./pages/ITRFiling";
 import Profile from "./pages/Profile";
 import About from "./pages/About";
 import Help from "./pages/Help";
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
               <Route path="/insurance" element={<ProtectedRoute><Insurance /></ProtectedRoute>} />
               <Route path="/tax" element={<ProtectedRoute><TaxPlanning /></ProtectedRoute>} />
+              <Route path="/itr" element={<ProtectedRoute><ITRFiling /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
               <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
