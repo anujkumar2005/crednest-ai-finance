@@ -30,24 +30,32 @@ export default function Landing() {
     e.preventDefault();
     setIsLoading(true);
     
-    const { error } = await signIn(loginForm.email, loginForm.password);
-    
-    setIsLoading(false);
-    
-    if (error) {
+    try {
+      const { error } = await signIn(loginForm.email, loginForm.password);
+      
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message || "Invalid email or password",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      toast({
+        title: "Welcome back!",
+        description: "You have been logged in successfully.",
+      });
+    } catch (err: any) {
+      console.error("Login error:", err);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid email or password",
+        description: "A network error occurred. Please check your connection and try again.",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
-    
-    toast({
-      title: "Welcome back!",
-      description: "You have been logged in successfully.",
-    });
-    navigate("/dashboard");
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -64,28 +72,36 @@ export default function Landing() {
     
     setIsLoading(true);
     
-    const { error } = await signUp(signupForm.email, signupForm.password, signupForm.name);
-    
-    setIsLoading(false);
-    
-    if (error) {
-      let message = error.message;
-      if (message.includes("already registered")) {
-        message = "This email is already registered. Please login instead.";
+    try {
+      const { error } = await signUp(signupForm.email, signupForm.password, signupForm.name);
+      
+      if (error) {
+        let message = error.message;
+        if (message.includes("already registered")) {
+          message = "This email is already registered. Please login instead.";
+        }
+        toast({
+          title: "Signup failed",
+          description: message,
+          variant: "destructive",
+        });
+        return;
       }
+      
+      toast({
+        title: "Account created!",
+        description: "Welcome to CredNest AI.",
+      });
+    } catch (err: any) {
+      console.error("Signup error:", err);
       toast({
         title: "Signup failed",
-        description: message,
+        description: "A network error occurred. Please check your connection and try again.",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
-    
-    toast({
-      title: "Account created!",
-      description: "Welcome to CredNest AI.",
-    });
-    navigate("/dashboard");
   };
 
   const features = [
