@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -285,12 +285,27 @@ serve(async (req) => {
     const body = await req.json();
     const { messages } = body;
     
-    if (!messages || !Array.isArray(messages)) {
-      console.error("Invalid messages format");
-      return new Response(JSON.stringify({ error: "Invalid request: messages required" }), {
+    if (!messages || !Array.isArray(messages) || messages.length === 0 || messages.length > 50) {
+      return new Response(JSON.stringify({ error: "Invalid request: messages must be a non-empty array (max 50)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const validRoles = ["user", "assistant", "system"];
+    for (const msg of messages) {
+      if (!msg || typeof msg.content !== "string" || !validRoles.includes(msg.role)) {
+        return new Response(JSON.stringify({ error: "Invalid message format: each message must have a valid role and string content" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (msg.content.length > 10000) {
+        return new Response(JSON.stringify({ error: "Message content too long (max 10000 characters)" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);

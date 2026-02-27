@@ -222,11 +222,27 @@ serve(async (req) => {
 
     const body = await req.json();
     const { messages } = body;
-    if (!messages || !Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: "Invalid request" }), {
+    if (!messages || !Array.isArray(messages) || messages.length === 0 || messages.length > 50) {
+      return new Response(JSON.stringify({ error: "Invalid request: messages must be a non-empty array (max 50)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const validRoles = ["user", "assistant", "system"];
+    for (const msg of messages) {
+      if (!msg || typeof msg.content !== "string" || !validRoles.includes(msg.role)) {
+        return new Response(JSON.stringify({ error: "Invalid message format" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (msg.content.length > 10000) {
+        return new Response(JSON.stringify({ error: "Message content too long (max 10000 characters)" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const lastUserMessage = messages.filter((m: Message) => m.role === "user").pop()?.content || "";
