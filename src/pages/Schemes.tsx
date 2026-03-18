@@ -278,11 +278,12 @@ export default function Schemes() {
       : `Run a comprehensive compliance check for an Indian business: Type: ${complianceInput.businessType}, Annual Turnover: ₹${complianceInput.turnover}, Employees: ${complianceInput.employees}, Sector: ${complianceInput.sector}, State: ${complianceInput.state}. Check: GST registration, MSME registration, labour laws (PF/ESI), Shop & Establishment Act, professional tax, trade license, FSSAI (if food), startup recognition (DPIIT), environmental clearances. Format as compliance report with ✅ ⚠️ ❌ items and eligible government schemes.`;
 
     try {
+      const { data: { session: compSession } } = await supabase.auth.getSession();
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scheme-chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${compSession?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ messages: [{ role: "user", content: prompt }], userProfile }),
       });
