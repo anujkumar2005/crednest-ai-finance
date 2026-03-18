@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,22 +19,52 @@ interface FundRate {
   rating: number;
 }
 
+async function fetchFromDatabase(supabaseUrl: string, serviceRoleKey: string): Promise<FundRate[]> {
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await adminClient
+    .from("investment_funds")
+    .select("name, fund_type, amc, nav, returns_1yr, returns_3yr, returns_5yr, expense_ratio, risk_level, rating")
+    .order("returns_1yr", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    console.error("Database fallback error:", error);
+    return [];
+  }
+  return (data || []).map(f => ({
+    name: f.name,
+    fund_type: f.fund_type ?? "Equity",
+    amc: f.amc ?? "Unknown AMC",
+    nav: f.nav ?? 0,
+    returns_1yr: f.returns_1yr ?? 0,
+    returns_3yr: f.returns_3yr ?? 0,
+    returns_5yr: f.returns_5yr ?? 0,
+    expense_ratio: f.expense_ratio ?? 0.5,
+    risk_level: f.risk_level ?? "Moderate",
+    rating: f.rating ?? 4,
+  }));
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.3");
     const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const supabaseAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false } });
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
     const { error: authError } = await supabaseAuth.auth.getUser(jwt);
     if (authError) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -42,22 +73,15 @@ serve(async (req) => {
     }
 
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-    
+
     if (!PERPLEXITY_API_KEY) {
-      console.error("PERPLEXITY_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({ error: "Perplexity API not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const funds = await fetchFromDatabase(supabaseUrl, serviceRoleKey);
+      return new Response(JSON.stringify({ funds, lastUpdated: new Date().toISOString(), citations: [], source: "database" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const currentDate = new Date().toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-
-    console.log("Fetching live investment fund rates...");
+    const currentDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
 
     const response = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
@@ -68,10 +92,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "sonar",
         messages: [
-          {
-            role: "system",
-            content: "You are a financial data expert. Return ONLY valid JSON, no explanations or markdown."
-          },
+          { role: "system", content: "You are a financial data expert. Return ONLY valid JSON, no explanations or markdown." },
           {
             role: "user",
             content: `Get the current NAV and returns for the top 10 best performing Indian mutual funds as of ${currentDate}. Include a mix of:
@@ -79,10 +100,8 @@ serve(async (req) => {
 - 3 Index funds (Nifty 50, Sensex, Nifty Next 50)
 - 2 Hybrid funds
 - 1 Debt fund
-
 Return ONLY a JSON array with this exact structure, no other text:
 [{"name":"Fund Name","fund_type":"Equity","amc":"AMC Name","nav":150.5,"returns_1yr":25.5,"returns_3yr":18.2,"returns_5yr":15.8,"expense_ratio":0.5,"risk_level":"High","rating":5}]
-
 Use actual current NAV and returns from official sources like AMFI, Value Research, or fund house websites. Rating should be 1-5.`
           }
         ],
@@ -96,16 +115,10 @@ Use actual current NAV and returns from official sources like AMFI, Value Resear
               items: {
                 type: "object",
                 properties: {
-                  name: { type: "string" },
-                  fund_type: { type: "string" },
-                  amc: { type: "string" },
-                  nav: { type: "number" },
-                  returns_1yr: { type: "number" },
-                  returns_3yr: { type: "number" },
-                  returns_5yr: { type: "number" },
-                  expense_ratio: { type: "number" },
-                  risk_level: { type: "string" },
-                  rating: { type: "number" }
+                  name: { type: "string" }, fund_type: { type: "string" }, amc: { type: "string" },
+                  nav: { type: "number" }, returns_1yr: { type: "number" }, returns_3yr: { type: "number" },
+                  returns_5yr: { type: "number" }, expense_ratio: { type: "number" },
+                  risk_level: { type: "string" }, rating: { type: "number" }
                 },
                 required: ["name", "fund_type", "amc", "nav", "returns_1yr", "returns_3yr", "returns_5yr", "expense_ratio", "risk_level", "rating"]
               }
@@ -118,23 +131,18 @@ Use actual current NAV and returns from official sources like AMFI, Value Resear
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Perplexity API error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch live rates" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const funds = await fetchFromDatabase(supabaseUrl, serviceRoleKey);
+      return new Response(JSON.stringify({ funds, lastUpdated: new Date().toISOString(), citations: [], source: "database" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-    
-    console.log("Received response from Perplexity");
-    
+
     let funds: FundRate[] = [];
-    
     try {
       funds = typeof content === "string" ? JSON.parse(content) : content;
-      
-      // Validate and clean the data
       funds = funds.map(fund => ({
         name: String(fund.name || "Unknown Fund"),
         fund_type: String(fund.fund_type || "Equity"),
@@ -147,26 +155,17 @@ Use actual current NAV and returns from official sources like AMFI, Value Resear
         risk_level: String(fund.risk_level || "Moderate"),
         rating: typeof fund.rating === "number" ? Math.min(5, Math.max(1, fund.rating)) : 4,
       }));
-      
-      // Sort by 1-year returns
       funds.sort((a, b) => b.returns_1yr - a.returns_1yr);
-      
-      console.log(`Successfully parsed ${funds.length} funds`);
-      
     } catch (parseError) {
-      console.error("Error parsing funds:", parseError, "Content:", content);
-      return new Response(
-        JSON.stringify({ error: "Failed to parse funds data" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error("Error parsing funds:", parseError);
+      const fallback = await fetchFromDatabase(supabaseUrl, serviceRoleKey);
+      return new Response(JSON.stringify({ funds: fallback, lastUpdated: new Date().toISOString(), citations: [], source: "database" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(
-      JSON.stringify({
-        funds,
-        lastUpdated: new Date().toISOString(),
-        citations: data.citations || [],
-      }),
+      JSON.stringify({ funds, lastUpdated: new Date().toISOString(), citations: data.citations || [], source: "live" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
