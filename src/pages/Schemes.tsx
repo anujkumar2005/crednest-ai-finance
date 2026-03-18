@@ -202,11 +202,12 @@ export default function Schemes() {
       setTimeout(() => setChatPhase("Analyzing eligibility..."), 1500);
       setTimeout(() => setChatPhase("Generating recommendations..."), 3000);
 
+      const { data: { session } } = await supabase.auth.getSession();
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scheme-chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ messages: history, userProfile }),
       });
