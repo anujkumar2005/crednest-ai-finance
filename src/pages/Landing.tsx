@@ -293,6 +293,29 @@ export default function Landing() {
                             </button>
                           </div>
                         </div>
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            className="text-xs text-primary hover:underline"
+                            onClick={async () => {
+                              if (!loginForm.email) {
+                                toast({ title: "Enter your email", description: "Please enter your email address first", variant: "destructive" });
+                                return;
+                              }
+                              try {
+                                const { error } = await supabase.auth.resetPasswordForEmail(loginForm.email, {
+                                  redirectTo: `${window.location.origin}/reset-password`,
+                                });
+                                if (error) throw error;
+                                toast({ title: "Reset email sent!", description: "Check your inbox for the password reset link." });
+                              } catch (err: any) {
+                                toast({ title: "Error", description: err.message || "Failed to send reset email", variant: "destructive" });
+                              }
+                            }}
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
                         <Button
                           type="submit"
                           variant="gold"
