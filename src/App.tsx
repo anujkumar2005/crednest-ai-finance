@@ -25,6 +25,7 @@ import Developer from "./pages/Developer";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Schemes from "./pages/Schemes";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
