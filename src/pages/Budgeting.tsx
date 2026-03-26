@@ -70,8 +70,11 @@ export default function Budgeting() {
   const [loading, setLoading] = useState(true);
   const [newExpense, setNewExpense] = useState({ category: "", amount: "", description: "" });
   const [newBudget, setNewBudget] = useState({ category: "", amount: "" });
+  const [newIncome, setNewIncome] = useState({ source: "", amount: "", description: "" });
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [addBudgetOpen, setAddBudgetOpen] = useState(false);
+  const [addIncomeOpen, setAddIncomeOpen] = useState(false);
+  const [incomes, setIncomes] = useState<Array<{ id: string; source: string; amount: number; date: string }>>([]);
   const { toast } = useToast();
 
   const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
