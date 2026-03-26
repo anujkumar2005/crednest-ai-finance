@@ -333,7 +333,9 @@ export default function Budgeting() {
 
   const totalPlanned = categories.reduce((acc, cat) => acc + cat.planned, 0);
   const totalSpent = categories.reduce((acc, cat) => acc + cat.spent, 0);
+  const totalIncome = incomes.reduce((acc, inc) => acc + inc.amount, 0);
   const remaining = totalPlanned - totalSpent;
+  const netSavings = totalIncome - totalSpent;
 
   // Get categories that haven't been added as budgets yet
   const availableCategories = defaultCategoryOptions.filter(
