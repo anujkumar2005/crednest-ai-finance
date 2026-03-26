@@ -25,6 +25,7 @@ import Developer from "./pages/Developer";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Schemes from "./pages/Schemes";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
               <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
               <Route path="/developer" element={<ProtectedRoute><DevProtectedRoute><Developer /></DevProtectedRoute></ProtectedRoute>} />
               <Route path="/schemes" element={<ProtectedRoute><Schemes /></ProtectedRoute>} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="*" element={<NotFound />} />

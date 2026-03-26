@@ -22,6 +22,8 @@ import {
   TrendingDown,
   Loader2,
   Trash2,
+  Wallet,
+  IndianRupee,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -68,8 +70,11 @@ export default function Budgeting() {
   const [loading, setLoading] = useState(true);
   const [newExpense, setNewExpense] = useState({ category: "", amount: "", description: "" });
   const [newBudget, setNewBudget] = useState({ category: "", amount: "" });
+  const [newIncome, setNewIncome] = useState({ source: "", amount: "", description: "" });
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [addBudgetOpen, setAddBudgetOpen] = useState(false);
+  const [addIncomeOpen, setAddIncomeOpen] = useState(false);
+  const [incomes, setIncomes] = useState<Array<{ id: string; source: string; amount: number; date: string }>>([]);
   const { toast } = useToast();
 
   const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
@@ -77,6 +82,7 @@ export default function Budgeting() {
   useEffect(() => {
     if (user) {
       fetchBudgets();
+      fetchIncomes();
     }
   }, [user]);
 
@@ -109,6 +115,49 @@ export default function Budgeting() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchIncomes = async () => {
+    try {
+      const startOfMonth = `${currentMonth}-01`;
+      const endDate = new Date(new Date(startOfMonth).getFullYear(), new Date(startOfMonth).getMonth() + 1, 0);
+      const endOfMonth = endDate.toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("incomes")
+        .select("id, source, amount, date")
+        .eq("user_id", user?.id)
+        .gte("date", startOfMonth)
+        .lte("date", endOfMonth)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      setIncomes((data || []).map(d => ({ ...d, amount: Number(d.amount) })));
+    } catch (error) {
+      console.error("Error fetching incomes:", error);
+    }
+  };
+
+  const handleAddIncome = async () => {
+    if (!newIncome.source || !newIncome.amount) {
+      toast({ title: "Error", description: "Please fill in source and amount", variant: "destructive" });
+      return;
+    }
+    try {
+      const { error } = await supabase.from("incomes").insert({
+        user_id: user?.id!,
+        source: newIncome.source,
+        amount: parseFloat(newIncome.amount),
+        description: newIncome.description || null,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      if (error) throw error;
+      toast({ title: "Income added!", description: `₹${parseFloat(newIncome.amount).toLocaleString()} from ${newIncome.source}` });
+      setNewIncome({ source: "", amount: "", description: "" });
+      setAddIncomeOpen(false);
+      fetchIncomes();
+    } catch (error) {
+      console.error("Error adding income:", error);
+      toast({ title: "Error", description: "Failed to add income", variant: "destructive" });
     }
   };
 
@@ -284,7 +333,9 @@ export default function Budgeting() {
 
   const totalPlanned = categories.reduce((acc, cat) => acc + cat.planned, 0);
   const totalSpent = categories.reduce((acc, cat) => acc + cat.spent, 0);
+  const totalIncome = incomes.reduce((acc, inc) => acc + inc.amount, 0);
   const remaining = totalPlanned - totalSpent;
+  const netSavings = totalIncome - totalSpent;
 
   // Get categories that haven't been added as budgets yet
   const availableCategories = defaultCategoryOptions.filter(
@@ -406,6 +457,51 @@ export default function Budgeting() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            {/* Add Income Dialog */}
+            <Dialog open={addIncomeOpen} onOpenChange={setAddIncomeOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Wallet className="h-4 w-4" />
+                  Add Income
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader>
+                  <DialogTitle>Add Income</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Source</label>
+                    <Input
+                      placeholder="e.g. Salary, Freelance, Dividend"
+                      value={newIncome.source}
+                      onChange={(e) => setNewIncome({ ...newIncome, source: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Amount (₹)</label>
+                    <Input
+                      type="number"
+                      placeholder="Enter amount"
+                      value={newIncome.amount}
+                      onChange={(e) => setNewIncome({ ...newIncome, amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Description (Optional)</label>
+                    <Input
+                      placeholder="Additional details"
+                      value={newIncome.description}
+                      onChange={(e) => setNewIncome({ ...newIncome, description: e.target.value })}
+                    />
+                  </div>
+                  <Button variant="gold" className="w-full" onClick={handleAddIncome}>
+                    Add Income
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -429,7 +525,7 @@ export default function Budgeting() {
         {categories.length > 0 && (
           <>
             {/* Overview Cards */}
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="glass-card">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
@@ -471,7 +567,33 @@ export default function Budgeting() {
                   </div>
                 </CardContent>
               </Card>
+              <Card className="glass-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Income</p>
+                      <p className="text-2xl font-bold text-primary">₹{totalIncome.toLocaleString()}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-primary/10">
+                      <Wallet className="h-6 w-6 text-primary" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
+
+            {/* Net Savings Banner */}
+            <Card className={`border-l-4 ${netSavings >= 0 ? "border-l-success" : "border-l-destructive"}`}>
+              <CardContent className="pt-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Net Savings (Income − Expenses)</p>
+                  <p className={`text-3xl font-bold ${netSavings >= 0 ? "text-success" : "text-destructive"}`}>
+                    ₹{netSavings.toLocaleString()}
+                  </p>
+                </div>
+                <IndianRupee className={`h-8 w-8 ${netSavings >= 0 ? "text-success" : "text-destructive"}`} />
+              </CardContent>
+            </Card>
 
             {/* Overall Progress */}
             <Card>

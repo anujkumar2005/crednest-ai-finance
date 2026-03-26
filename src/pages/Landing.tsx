@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Eye, EyeOff, Sparkles, ArrowRight, Shield, TrendingUp, Wallet, Code2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -293,6 +294,29 @@ export default function Landing() {
                             </button>
                           </div>
                         </div>
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            className="text-xs text-primary hover:underline"
+                            onClick={async () => {
+                              if (!loginForm.email) {
+                                toast({ title: "Enter your email", description: "Please enter your email address first", variant: "destructive" });
+                                return;
+                              }
+                              try {
+                                const { error } = await supabase.auth.resetPasswordForEmail(loginForm.email, {
+                                  redirectTo: `${window.location.origin}/reset-password`,
+                                });
+                                if (error) throw error;
+                                toast({ title: "Reset email sent!", description: "Check your inbox for the password reset link." });
+                              } catch (err: any) {
+                                toast({ title: "Error", description: err.message || "Failed to send reset email", variant: "destructive" });
+                              }
+                            }}
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
                         <Button
                           type="submit"
                           variant="gold"
@@ -384,7 +408,7 @@ export default function Landing() {
         <footer className="container mx-auto px-4 py-8 border-t border-border/50">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 CredNest AI. All rights reserved.
+              © {new Date().getFullYear()} CredNest AI. All rights reserved.
             </p>
             <div className="flex items-center gap-6">
               <Link to="/privacy" className="text-sm text-muted-foreground hover:text-foreground">
