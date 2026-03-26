@@ -118,6 +118,49 @@ export default function Budgeting() {
     }
   };
 
+  const fetchIncomes = async () => {
+    try {
+      const startOfMonth = `${currentMonth}-01`;
+      const endDate = new Date(new Date(startOfMonth).getFullYear(), new Date(startOfMonth).getMonth() + 1, 0);
+      const endOfMonth = endDate.toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("incomes")
+        .select("id, source, amount, date")
+        .eq("user_id", user?.id)
+        .gte("date", startOfMonth)
+        .lte("date", endOfMonth)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      setIncomes((data || []).map(d => ({ ...d, amount: Number(d.amount) })));
+    } catch (error) {
+      console.error("Error fetching incomes:", error);
+    }
+  };
+
+  const handleAddIncome = async () => {
+    if (!newIncome.source || !newIncome.amount) {
+      toast({ title: "Error", description: "Please fill in source and amount", variant: "destructive" });
+      return;
+    }
+    try {
+      const { error } = await supabase.from("incomes").insert({
+        user_id: user?.id!,
+        source: newIncome.source,
+        amount: parseFloat(newIncome.amount),
+        description: newIncome.description || null,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      if (error) throw error;
+      toast({ title: "Income added!", description: `₹${parseFloat(newIncome.amount).toLocaleString()} from ${newIncome.source}` });
+      setNewIncome({ source: "", amount: "", description: "" });
+      setAddIncomeOpen(false);
+      fetchIncomes();
+    } catch (error) {
+      console.error("Error adding income:", error);
+      toast({ title: "Error", description: "Failed to add income", variant: "destructive" });
+    }
+  };
+
   const handleAddBudget = async () => {
     if (!newBudget.category || !newBudget.amount) {
       toast({
