@@ -525,7 +525,7 @@ export default function Budgeting() {
         {categories.length > 0 && (
           <>
             {/* Overview Cards */}
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="glass-card">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
