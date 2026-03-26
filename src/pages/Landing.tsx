@@ -408,7 +408,7 @@ export default function Landing() {
         <footer className="container mx-auto px-4 py-8 border-t border-border/50">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 CredNest AI. All rights reserved.
+              © {new Date().getFullYear()} CredNest AI. All rights reserved.
             </p>
             <div className="flex items-center gap-6">
               <Link to="/privacy" className="text-sm text-muted-foreground hover:text-foreground">
