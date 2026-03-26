@@ -567,7 +567,33 @@ export default function Budgeting() {
                   </div>
                 </CardContent>
               </Card>
+              <Card className="glass-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Income</p>
+                      <p className="text-2xl font-bold text-primary">₹{totalIncome.toLocaleString()}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-primary/10">
+                      <Wallet className="h-6 w-6 text-primary" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
+
+            {/* Net Savings Banner */}
+            <Card className={`border-l-4 ${netSavings >= 0 ? "border-l-success" : "border-l-destructive"}`}>
+              <CardContent className="pt-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Net Savings (Income − Expenses)</p>
+                  <p className={`text-3xl font-bold ${netSavings >= 0 ? "text-success" : "text-destructive"}`}>
+                    ₹{netSavings.toLocaleString()}
+                  </p>
+                </div>
+                <IndianRupee className={`h-8 w-8 ${netSavings >= 0 ? "text-success" : "text-destructive"}`} />
+              </CardContent>
+            </Card>
 
             {/* Overall Progress */}
             <Card>
