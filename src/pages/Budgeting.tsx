@@ -82,6 +82,7 @@ export default function Budgeting() {
   useEffect(() => {
     if (user) {
       fetchBudgets();
+      fetchIncomes();
     }
   }, [user]);
 
