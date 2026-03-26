@@ -457,6 +457,51 @@ export default function Budgeting() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            {/* Add Income Dialog */}
+            <Dialog open={addIncomeOpen} onOpenChange={setAddIncomeOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Wallet className="h-4 w-4" />
+                  Add Income
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader>
+                  <DialogTitle>Add Income</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Source</label>
+                    <Input
+                      placeholder="e.g. Salary, Freelance, Dividend"
+                      value={newIncome.source}
+                      onChange={(e) => setNewIncome({ ...newIncome, source: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Amount (₹)</label>
+                    <Input
+                      type="number"
+                      placeholder="Enter amount"
+                      value={newIncome.amount}
+                      onChange={(e) => setNewIncome({ ...newIncome, amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Description (Optional)</label>
+                    <Input
+                      placeholder="Additional details"
+                      value={newIncome.description}
+                      onChange={(e) => setNewIncome({ ...newIncome, description: e.target.value })}
+                    />
+                  </div>
+                  <Button variant="gold" className="w-full" onClick={handleAddIncome}>
+                    Add Income
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
