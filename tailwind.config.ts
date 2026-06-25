@@ -137,16 +137,21 @@ export default {
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
-  			'fade-in': 'fade-in 0.5s ease-out',
-  			'slide-in': 'slide-in 0.3s ease-out',
+  			'fade-in': 'fade-in 0.6s cubic-bezier(.2,.8,.2,1)',
+  			'slide-in': 'slide-in 0.4s cubic-bezier(.2,.8,.2,1)',
+  			'scale-in': 'scale-in 0.4s cubic-bezier(.2,.8,.2,1)',
+  			'blob': 'blob 12s ease-in-out infinite',
   			shimmer: 'shimmer 2s infinite'
   		},
   		backgroundImage: {
   			'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
   			'hero-gradient': 'linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%)',
-  			'gold-gradient': 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--warning)) 100%)',
-  			'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)'
+  			'gold-gradient': 'var(--gradient-aurora)',
+  			'aurora-gradient': 'var(--gradient-aurora)',
+  			'primary-gradient': 'var(--gradient-primary)',
+  			'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%)'
   		},
+
   		boxShadow: {
   			'2xs': 'var(--shadow-2xs)',
   			xs: 'var(--shadow-xs)',
