@@ -96,11 +96,15 @@ export function Sidebar({ onLogout }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 h-full bg-sidebar border-r border-sidebar-border z-50 transition-all duration-300 flex flex-col",
+          "fixed left-0 top-0 h-full z-50 transition-all duration-500 flex flex-col",
+          "bg-sidebar/70 backdrop-blur-2xl border-r border-sidebar-border/60 shadow-2xl",
+          "before:content-[''] before:absolute before:inset-0 before:pointer-events-none before:opacity-60",
+          "before:bg-[radial-gradient(120%_60%_at_50%_0%,hsl(243_90%_50%/0.25),transparent_60%)]",
           isCollapsed ? "w-20" : "w-64",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
+
         {/* Header */}
         <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
           {!isCollapsed && (
