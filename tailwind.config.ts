@@ -88,39 +88,12 @@ export default {
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		fontFamily: {
-  			sans: [
-  				'Roboto',
-  				'ui-sans-serif',
-  				'system-ui',
-  				'-apple-system',
-  				'BlinkMacSystemFont',
-  				'Segoe UI',
-  				'Helvetica Neue',
-  				'Arial',
-  				'Noto Sans',
-  				'sans-serif'
-  			],
-  			serif: [
-  				'Libre Caslon Text',
-  				'ui-serif',
-  				'Georgia',
-  				'Cambria',
-  				'Times New Roman',
-  				'Times',
-  				'serif'
-  			],
-  			mono: [
-  				'Roboto Mono',
-  				'ui-monospace',
-  				'SFMono-Regular',
-  				'Menlo',
-  				'Monaco',
-  				'Consolas',
-  				'Liberation Mono',
-  				'Courier New',
-  				'monospace'
-  			]
+  			sans: ['IBM Plex Sans', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+  			serif: ['Libre Baskerville', 'ui-serif', 'Georgia', 'Times New Roman', 'serif'],
+  			display: ['Libre Baskerville', 'ui-serif', 'Georgia', 'serif'],
+  			mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
   		},
+
   		keyframes: {
   			'accordion-down': {
   				from: {
@@ -139,25 +112,22 @@ export default {
   				}
   			},
   			'fade-in': {
-  				from: {
-  					opacity: '0',
-  					transform: 'translateY(10px)'
-  				},
-  				to: {
-  					opacity: '1',
-  					transform: 'translateY(0)'
-  				}
+  				from: { opacity: '0', transform: 'translateY(14px)' },
+  				to:   { opacity: '1', transform: 'translateY(0)' }
   			},
   			'slide-in': {
-  				from: {
-  					opacity: '0',
-  					transform: 'translateX(-20px)'
-  				},
-  				to: {
-  					opacity: '1',
-  					transform: 'translateX(0)'
-  				}
+  				from: { opacity: '0', transform: 'translateX(-20px)' },
+  				to:   { opacity: '1', transform: 'translateX(0)' }
   			},
+  			'scale-in': {
+  				from: { opacity: '0', transform: 'scale(0.92)' },
+  				to:   { opacity: '1', transform: 'scale(1)' }
+  			},
+  			'blob': {
+  				'0%,100%': { borderRadius: '42% 58% 70% 30% / 45% 30% 70% 55%' },
+  				'50%':     { borderRadius: '60% 40% 30% 70% / 50% 60% 40% 50%' }
+  			},
+
   			shimmer: {
   				'100%': {
   					transform: 'translateX(100%)'
