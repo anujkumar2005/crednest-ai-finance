@@ -64,14 +64,15 @@ export default function Landing() {
     { icon: Shield, title: "Loan & Insurance", description: "Best rates across leading Indian banks." },
   ];
 
-  const container = {
+  const container: any = {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
   };
-  const item = {
+  const item: any = {
     hidden: { opacity: 0, y: 24 },
     show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.2, 0.8, 0.2, 1] } },
   };
+
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
