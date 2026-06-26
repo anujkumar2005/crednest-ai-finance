@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { DevProtectedRoute } from "@/components/DevProtectedRoute";
 import { FloatingAIButton } from "@/components/FloatingAIButton";
+import { CursorFX } from "@/components/CursorFX";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
@@ -38,6 +39,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <CursorFX />
             <FloatingAIButton />
             <Routes>
               <Route path="/" element={<Landing />} />
