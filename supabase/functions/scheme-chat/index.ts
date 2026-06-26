@@ -31,7 +31,7 @@ serve(async (req) => {
       });
     }
 
-    const { messages, userProfile } = await req.json();
+    const { messages } = await req.json();
     
     // Validate messages
     if (!messages || !Array.isArray(messages) || messages.length === 0 || messages.length > 50) {
@@ -60,7 +60,25 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // SUPABASE_URL and SUPABASE_ANON_KEY already declared above in auth block
+    // Fetch user profile server-side from verified user.id (prevents prompt injection via client-supplied profile)
+    const { data: profile } = await supabaseAuth
+      .from('profiles')
+      .select('name, age, gender, occupation, monthly_income, state, city')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    // Sanitize a field for safe interpolation: strip newlines/control chars, cap length
+    const sanitize = (v: unknown, max = 80): string => {
+      if (v === null || v === undefined) return 'N/A';
+      const s = String(v).replace(/[\r\n\t\u0000-\u001F\u007F]+/g, ' ').trim();
+      if (!s) return 'N/A';
+      return s.length > max ? s.slice(0, max) : s;
+    };
+    const sanitizeNum = (v: unknown): string => {
+      if (v === null || v === undefined || v === '') return 'N/A';
+      const n = Number(v);
+      return Number.isFinite(n) ? String(n) : 'N/A';
+    };
 
     // Fetch all schemes for context
     const schemesRes = await fetch(`${SUPABASE_URL}/rest/v1/government_schemes?is_active=eq.true&select=*`, {
@@ -72,9 +90,10 @@ serve(async (req) => {
       `**${s.name}** (${s.category}/${s.target_audience}): ${s.description} | Benefits: ${s.benefits} | Eligibility: ${JSON.stringify(s.eligibility_criteria)} | Age: ${s.age_min || 'any'}-${s.age_max || 'any'} | Income limit: ${s.income_limit || 'none'} | How to apply: ${s.how_to_apply} | Website: ${s.website_url}`
     ).join("\n\n");
 
-    const userContext = userProfile ? `
-User Profile: Name: ${userProfile.name || 'N/A'}, Age: ${userProfile.age || 'N/A'}, Gender: ${userProfile.gender || 'N/A'}, Occupation: ${userProfile.occupation || 'N/A'}, Monthly Income: ₹${userProfile.monthly_income || 'N/A'}, State: ${userProfile.state || 'N/A'}, City: ${userProfile.city || 'N/A'}
+    const userContext = profile ? `
+User Profile: Name: ${sanitize(profile.name)}, Age: ${sanitizeNum(profile.age)}, Gender: ${sanitize(profile.gender, 20)}, Occupation: ${sanitize(profile.occupation, 60)}, Monthly Income: ₹${sanitizeNum(profile.monthly_income)}, State: ${sanitize(profile.state, 40)}, City: ${sanitize(profile.city, 40)}
 ` : '';
+
 
     const systemPrompt = `You are **SchemeGuru AI** — India's Government Schemes Expert Assistant by CredNest AI.
 
