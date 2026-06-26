@@ -378,3 +378,24 @@
 }
 .animate-float { animation: float 4s ease-in-out infinite; }
 .animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+
+/* ---------- CursorFX: hide native cursor, add tilt to interactive ---------- */
+@media (hover: hover) and (pointer: fine) {
+  body.cursor-fx-active,
+  body.cursor-fx-active * {
+    cursor: none !important;
+  }
+  body.cursor-fx-active a,
+  body.cursor-fx-active button,
+  body.cursor-fx-active [role="button"],
+  body.cursor-fx-active [data-cursor="hover"] {
+    transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease;
+    transform-style: preserve-3d;
+  }
+  body.cursor-fx-active a:hover,
+  body.cursor-fx-active button:hover,
+  body.cursor-fx-active [role="button"]:hover,
+  body.cursor-fx-active [data-cursor="hover"]:hover {
+    transform: translateZ(0) translateY(-1px) scale(1.015);
+  }
+}
