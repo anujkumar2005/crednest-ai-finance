@@ -379,6 +379,170 @@
 .animate-float { animation: float 4s ease-in-out infinite; }
 .animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
 
+/* ================================================================
+   PREMIUM POLISH LAYER — global elevation for cards, buttons, inputs
+   Inspired by Apple / Stripe / Linear / Vercel / Framer
+   ================================================================ */
+
+@layer components {
+  /* Elevate every shadcn Card automatically (no component edits) */
+  [data-slot="card"],
+  .rounded-lg.border.bg-card,
+  .rounded-xl.border.bg-card {
+    background: hsl(var(--card) / 0.55) !important;
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid hsl(var(--glass-border)) !important;
+    border-radius: 1.25rem !important;
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.05) inset,
+      0 20px 40px -24px hsl(233 60% 4% / 0.55),
+      0 2px 8px -2px hsl(233 60% 4% / 0.35);
+    transition: transform .5s cubic-bezier(.2,.8,.2,1),
+                box-shadow .5s ease,
+                border-color .3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  [data-slot="card"]::before,
+  .rounded-lg.border.bg-card::before,
+  .rounded-xl.border.bg-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(130deg, hsl(0 0% 100% / 0.07), transparent 45%);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  [data-slot="card"]:hover,
+  .rounded-lg.border.bg-card:hover,
+  .rounded-xl.border.bg-card:hover {
+    transform: translateY(-3px);
+    border-color: hsl(var(--primary) / 0.4) !important;
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.08) inset,
+      0 30px 60px -20px hsl(243 90% 30% / 0.5),
+      0 0 40px -10px hsl(270 90% 60% / 0.28);
+  }
+
+  /* Premium input polish */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    transition: box-shadow .3s ease, border-color .3s ease, background-color .3s ease;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  textarea:focus,
+  select:focus {
+    box-shadow:
+      0 0 0 4px hsl(var(--primary) / 0.18),
+      0 8px 24px -12px hsl(var(--primary) / 0.4);
+  }
+
+  /* Premium default button hover (non-destructive) */
+  button:not(.btn-glow):not([data-slot="sidebar-menu-button"]):not(.sidebar-link) {
+    transition: transform .25s cubic-bezier(.2,.8,.2,1),
+                box-shadow .25s ease,
+                filter .25s ease;
+  }
+  button:not(:disabled):not(.btn-glow):not([data-slot="sidebar-menu-button"]):not(.sidebar-link):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06) saturate(1.05);
+  }
+  button:not(:disabled):active { transform: translateY(0) scale(0.98); }
+
+  /* Floating navbar */
+  .nav-floating {
+    position: sticky; top: 12px; z-index: 50;
+    margin: 12px auto;
+    background: hsl(233 50% 8% / 0.55);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid hsl(var(--glass-border));
+    border-radius: 9999px;
+    box-shadow: 0 10px 40px -12px hsl(233 60% 4% / 0.6);
+  }
+
+  /* Animated underline link */
+  .link-underline {
+    position: relative; display: inline-block;
+  }
+  .link-underline::after {
+    content: ''; position: absolute; left: 0; bottom: -2px;
+    width: 100%; height: 2px; border-radius: 2px;
+    background: var(--gradient-aurora);
+    transform: scaleX(0); transform-origin: right;
+    transition: transform .4s cubic-bezier(.2,.8,.2,1);
+  }
+  .link-underline:hover::after { transform: scaleX(1); transform-origin: left; }
+
+  /* Shimmer loading */
+  .shimmer {
+    position: relative; overflow: hidden;
+    background: hsl(var(--muted));
+  }
+  .shimmer::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg,
+      transparent,
+      hsl(0 0% 100% / 0.08),
+      transparent);
+    animation: shimmer-slide 1.6s infinite;
+  }
+  @keyframes shimmer-slide {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+  }
+
+  /* Magnetic button feel */
+  .magnetic { transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+  .magnetic:hover { transform: translateY(-2px) scale(1.03); }
+
+  /* Section grid pattern */
+  .grid-pattern {
+    background-image:
+      linear-gradient(hsl(var(--primary) / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--primary) / 0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+  }
+
+  /* Mesh gradient decoration */
+  .mesh-decor {
+    position: absolute; inset: -20% -10% auto auto;
+    width: 60vmax; height: 60vmax; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(35% 35% at 30% 30%, hsl(243 90% 60% / 0.35), transparent 60%),
+      radial-gradient(30% 30% at 70% 40%, hsl(270 95% 70% / 0.32), transparent 60%),
+      radial-gradient(35% 35% at 50% 75%, hsl(195 95% 60% / 0.28), transparent 60%);
+    filter: blur(30px);
+    animation: mesh-drift 22s ease-in-out infinite alternate;
+  }
+  @keyframes mesh-drift {
+    to { transform: translate3d(-4%, 3%, 0) rotate(8deg); }
+  }
+}
+
+@layer utilities {
+  /* Scroll reveal — pair with IntersectionObserver or use CSS-only fallback */
+  .reveal-up {
+    opacity: 0; transform: translateY(24px);
+    animation: reveal-up .7s cubic-bezier(.2,.8,.2,1) forwards;
+    animation-timeline: view();
+    animation-range: entry 0% cover 30%;
+  }
+  @keyframes reveal-up { to { opacity: 1; transform: none; } }
+
+  /* Respect reduced motion globally */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
 /* ---------- CursorFX: hide native cursor, add tilt to interactive ---------- */
 @media (hover: hover) and (pointer: fine) {
   body.cursor-fx-active,
